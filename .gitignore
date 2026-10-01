@@ -1,0 +1,18 @@
+# Restricted or row-level PPMI data: never commit
+code/PPMI_[0-9]*.csv
+code/PPMI_Curated_Data_Cut_Public_*.xlsx
+code/step_13_lr_predictions.csv
+code/step_14_*_predictions.csv
+code/step_15_*predictions*.csv
+code/step_21_*predictions*.csv
+code/step_15_checkpoints/
+code/step_15_tuning_studies.db*
+code/step_17_shap_checkpoints/
+code/step_17_shap_values_*.npz
+catboost_info/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
