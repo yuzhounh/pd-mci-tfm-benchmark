@@ -57,7 +57,9 @@ def load_track(track: str, config: dict):
     if not (preds["PATNO"].to_numpy() == test["PATNO"].to_numpy()).all():
         raise RuntimeError(f"Prediction rows do not match the {track} test set")
     if not (preds["MCI"].to_numpy() == test["MCI"].to_numpy()).all():
-        raise RuntimeError(f"Outcome mismatch between predictions and the {track} test set")
+        raise RuntimeError(
+            f"Outcome mismatch between predictions and the {track} test set"
+        )
     thresholds = dict(zip(metrics["Model"], metrics["Threshold"]))
     return preds, thresholds
 
@@ -67,7 +69,9 @@ def overall_ci(track, preds, thresholds, n_bootstrap, seed):
     indices = bootstrap_indices(len(y), n_bootstrap, seed)
     models = list(thresholds)
     results = Parallel(n_jobs=-1)(
-        delayed(bootstrap_model_ci)(y, preds[f"prob_{m}"].to_numpy(), thresholds[m], indices)
+        delayed(bootstrap_model_ci)(
+            y, preds[f"prob_{m}"].to_numpy(), thresholds[m], indices
+        )
         for m in models
     )
     rows = []
@@ -98,7 +102,8 @@ def recalibrated_sensitivity(track, preds, thresholds, n_bootstrap, seed):
     recal_test, rows = {}, []
     for m in thresholds:
         res = sm.GLM(
-            y_train, sm.add_constant(_logit(oof[f"prob_{m}"].to_numpy())),
+            y_train,
+            sm.add_constant(_logit(oof[f"prob_{m}"].to_numpy())),
             family=sm.families.Binomial(),
         ).fit()
         a, b = float(res.params[0]), float(res.params[1])
@@ -106,13 +111,23 @@ def recalibrated_sensitivity(track, preds, thresholds, n_bootstrap, seed):
         def apply(p):
             return 1.0 / (1.0 + np.exp(-(a + b * _logit(p))))
 
-        threshold = find_optimal_youden_threshold(y_train, apply(oof[f"prob_{m}"].to_numpy()))
+        threshold = find_optimal_youden_threshold(
+            y_train, apply(oof[f"prob_{m}"].to_numpy())
+        )
         recal_test[m] = apply(preds[f"prob_{m}"].to_numpy())
         ci = bootstrap_model_ci(y_test, recal_test[m], threshold, indices)
 
         row = {"Model": m, "Recal_a": a, "Recal_b": b, "Threshold": threshold}
-        for metric in ["AUROC", "AUPRC", "Brier", "LogLoss", "Calib_Slope", "Calib_Intercept",
-                       "Sensitivity", "Specificity"]:
+        for metric in [
+            "AUROC",
+            "AUPRC",
+            "Brier",
+            "LogLoss",
+            "Calib_Slope",
+            "Calib_Intercept",
+            "Sensitivity",
+            "Specificity",
+        ]:
             row[metric] = ci[metric]["point"]
             row[f"{metric}_CI_lower"] = ci[metric]["ci_lower"]
             row[f"{metric}_CI_upper"] = ci[metric]["ci_upper"]
@@ -126,10 +141,18 @@ def recalibrated_sensitivity(track, preds, thresholds, n_bootstrap, seed):
             deltas.append((np.nan, np.nan, np.nan))
             continue
         d = paired_bootstrap_test_comparison(
-            y_test, recal_test["LR"], recal_test[m], n_bootstrap=n_bootstrap, random_state=seed
+            y_test,
+            recal_test["LR"],
+            recal_test[m],
+            n_bootstrap=n_bootstrap,
+            random_state=seed,
         )["Delta_Brier"]
         deltas.append((d["diff_point"], d["ci_lower"], d["ci_upper"]))
-    out["Delta_Brier_vs_LR"], out["Delta_Brier_CI_lower"], out["Delta_Brier_CI_upper"] = zip(*deltas)
+    (
+        out["Delta_Brier_vs_LR"],
+        out["Delta_Brier_CI_lower"],
+        out["Delta_Brier_CI_upper"],
+    ) = zip(*deltas)
     out.to_csv(f"{OUT_PREFIX}_recalibrated_{track}.csv", index=False)
     return out
 
@@ -143,14 +166,22 @@ def forest_plot(track, overall, prevalence):
     for ax, metric, chance in [(axes[0], "AUPRC", prevalence), (axes[1], "AUROC", 0.5)]:
         for i, m in enumerate(models):
             ax.errorbar(
-                df.loc[m, metric], ypos[i],
-                xerr=[[df.loc[m, metric] - df.loc[m, f"{metric}_CI_lower"]],
-                      [df.loc[m, f"{metric}_CI_upper"] - df.loc[m, metric]]],
-                fmt="o", color=MODEL_COLORS.get(m, "#333333"),
-                capsize=2, markersize=5, linewidth=1,
+                df.loc[m, metric],
+                ypos[i],
+                xerr=[
+                    [df.loc[m, metric] - df.loc[m, f"{metric}_CI_lower"]],
+                    [df.loc[m, f"{metric}_CI_upper"] - df.loc[m, metric]],
+                ],
+                fmt="o",
+                color=MODEL_COLORS.get(m, "#333333"),
+                capsize=2,
+                markersize=5,
+                linewidth=1,
             )
         ax.axvline(chance, color="grey", linestyle=":", linewidth=1)
-        ax.axvline(df.loc["LR", metric], color=MODEL_COLORS["LR"], linestyle="--", linewidth=1)
+        ax.axvline(
+            df.loc["LR", metric], color=MODEL_COLORS["LR"], linestyle="--", linewidth=1
+        )
         ax.set_xlabel(f"Test-set {metric} (95% bootstrap CI)")
         ax.grid(axis="x", alpha=0.25)
     axes[0].set_yticks(ypos)
@@ -171,22 +202,47 @@ def main(tracks=None):
     n_bootstrap = config["protocol"]["bootstrap_samples"]
     seed = config["protocol"]["bootstrap_seed"]
 
-    for track in (tracks or TRACKS):
+    for track in tracks or TRACKS:
         print(f"\n=== {track} track ===")
         preds, thresholds = load_track(track, config)
         overall = overall_ci(track, preds, thresholds, n_bootstrap, seed)
-        cols = ["Model", "AUPRC", "AUPRC_CI_lower", "AUPRC_CI_upper",
-                "AUROC", "AUROC_CI_lower", "AUROC_CI_upper",
-                "Calib_Slope", "Calib_Slope_CI_lower", "Calib_Slope_CI_upper"]
+        cols = [
+            "Model",
+            "AUPRC",
+            "AUPRC_CI_lower",
+            "AUPRC_CI_upper",
+            "AUROC",
+            "AUROC_CI_lower",
+            "AUROC_CI_upper",
+            "Calib_Slope",
+            "Calib_Slope_CI_lower",
+            "Calib_Slope_CI_upper",
+        ]
         print(overall[cols].round(3).to_string(index=False))
 
         forest_plot(track, overall, prevalence=float(preds["MCI"].mean()))
 
         recal = recalibrated_sensitivity(track, preds, thresholds, n_bootstrap, seed)
-        print(recal[["Model", "Recal_a", "Recal_b", "AUPRC", "Brier", "Calib_Slope",
-                     "Calib_Slope_CI_lower", "Calib_Slope_CI_upper", "Calib_Intercept",
-                     "Delta_Brier_vs_LR", "Delta_Brier_CI_lower",
-                     "Delta_Brier_CI_upper"]].round(3).to_string(index=False))
+        print(
+            recal[
+                [
+                    "Model",
+                    "Recal_a",
+                    "Recal_b",
+                    "AUPRC",
+                    "Brier",
+                    "Calib_Slope",
+                    "Calib_Slope_CI_lower",
+                    "Calib_Slope_CI_upper",
+                    "Calib_Intercept",
+                    "Delta_Brier_vs_LR",
+                    "Delta_Brier_CI_lower",
+                    "Delta_Brier_CI_upper",
+                ]
+            ]
+            .round(3)
+            .to_string(index=False)
+        )
         print(f"Saved step_16 outputs for the {track} track")
 
 

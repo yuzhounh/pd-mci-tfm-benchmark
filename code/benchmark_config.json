@@ -13,7 +13,7 @@
     "single_visit_row_invariant": true,
     "device": "cuda",
     "leakage_prevention": "In-fold standardization on training folds; test set transformed using whole training set scaler",
-    "early_stopping": "XGBoost, LightGBM, CatBoost, RealMLP and TabM use a stratified 10% split of the rows they are trained on; scored rows are never used for early stopping. Other models are fit on all training rows.",
+    "early_stopping": "XGBoost, LightGBM, CatBoost and TabM early-stop on a stratified 10% internal split; RealMLP retains the best validation epoch during a fixed schedule. Final fits allocate 117 rows to validation and 1048 to tree/weight fitting, with no all-row refit. Scored rows are never used for those choices. Other models use all training rows.",
     "class_imbalance": "No class weighting or resampling in any model, so predicted probabilities stay on the risk scale (van den Goorbergh et al., JAMIA 2022).",
     "threshold": "Youden threshold from pooled training out-of-fold predictions",
     "quick_test": "--quick-test evaluates on a stratified 30% split of the training set and never uses the locked test set",
@@ -32,9 +32,9 @@
       }
     },
     "known_deviations": [
-      "Inputs are the step 08 imputed matrices (training-set medians/modes estimated on the full training set), so imputation is not repeated inside CV folds; missingness is 0-8% per feature.",
-      "The 7-feature track uses features selected by LASSO on the full training set, so its CV estimates are optimistic; its test-set evaluation is unaffected.",
-      "Hyperparameters are tuned on the same training-set CV folds that give the out-of-fold predictions used for the Youden threshold, so CV metrics of tuned models are optimistic; the test-set evaluation is unaffected.",
+      "Inputs are step 08 imputed matrices with constants estimated on the full training set, rather than within CV folds. Non-APOE missingness is at most 8.2%; APOE is missing for 19.1% of training and 20.0% of test rows. QUIP, ESS and RBDSQ are numeric scores using an explicit mode-imputation exception.",
+      "The 7-feature track uses features selected by LASSO on the full training set, so its CV estimates are optimistic. Selection does not use test labels during final fitting, but earlier test results informed protocol choices; final test comparisons are exploratory.",
+      "Hyperparameters are tuned on the same CV folds used for out-of-fold predictions and Youden thresholds, so CV metrics of tuned models are optimistic. Final tuning uses training rows only; independent confirmation is still required because the test split was previously evaluated.",
       "2026-09-27: before the protocol fixes in benchmark config v1.1.1, the locked test set was evaluated twice by the pre-fix code: a --quick-test run (19:19, under-trained smoke-test settings) and a full run of both tracks (19:34-19:38, committed in 52b0f7d; plain LR on all inputs, TabPFN v2 weights, TabFM with 100 context rows, early stopping on the scored CV fold). The v1.1.1 changes come from a code review of methodological defects (early-stopping leakage, 90% final fits, LR comparator, silent failures, test-set use by quick tests) and from pre-specified choices (TabPFN v2.5, TabFM with all rows); no model, hyperparameter or checkpoint was chosen from those test-set results. Both pre-fix runs are superseded and must not be reported as benchmark results.",
       "2026-09-29 (v1.4): the v1.2 protocol (config 1.2.0) was evaluated once on the locked test set (v1.2 release). v1.4 changes the protocol after those results were seen: the 7-feature track becomes primary (clinical interpretability; 28 features did not improve any model in v1.2) and the 28-feature track a sensitivity analysis; AUPRC becomes the pre-specified primary metric (v1.2 named none); TabPFN v2.5 is dropped (its v1.2 results matched v3.5); SVM, RF, LightGBM and RealMLP are added; all models trained from scratch are tuned instead of using fixed settings; the sex subgroup analysis is dropped. The locked test set will be evaluated a second time with the v1.4 protocol."
     ]

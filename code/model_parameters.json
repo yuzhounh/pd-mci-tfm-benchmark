@@ -1,0 +1,584 @@
+{
+  "model_type": "Unpenalized Multivariable Logistic Regression (Baseline Single-Visit)",
+  "target": "PD-MCI",
+  "outcome_definition": "PPMI-derived operational PD-MCI indicator",
+  "intercept": 0.3027084361140214,
+  "coefficients": {
+    "SEX": 0.7843539097380157,
+    "EDUCYRS": -0.13483725992378717,
+    "fampd_bin": 0.3298963251502963,
+    "sym_other": -0.4993146068058246,
+    "upsit_pctl": -0.007366010386991072,
+    "gds": 0.09558872563699863,
+    "MIA_CAUDATE_mean": -0.7431614076261979
+  },
+  "feature_order": [
+    "Sex",
+    "Education",
+    "FH-PD",
+    "Other Symptoms",
+    "upsit_pctl",
+    "GDS",
+    "MIA_CAUDATE_mean"
+  ],
+  "feature_abbreviations": {
+    "SEX": "Sex",
+    "EDUCYRS": "Education",
+    "fampd_bin": "FH-PD",
+    "sym_other": "Other Symptoms",
+    "upsit_pctl": "upsit_pctl",
+    "gds": "GDS",
+    "MIA_CAUDATE_mean": "MIA_CAUDATE_mean"
+  },
+  "thresholds": {
+    "default": 0.5,
+    "youden": 0.1726,
+    "f1": 0.2195
+  },
+  "clinical_notes": {
+    "motor_assessment_state": "H&Y, MDS-UPDRS Part III, and PIGD use OFF-medication assessments in treated participants or assessments in untreated participants.",
+    "intended_use": "Baseline participant-level risk stratification aid for exploratory screening, not a standalone diagnostic confirmation."
+  },
+  "scale_ranges": {
+    "Sex": {
+      "min": 0,
+      "max": 1,
+      "description": "0=Female, 1=Male"
+    },
+    "Education": {
+      "min": 0,
+      "max": 20,
+      "unit": "years"
+    },
+    "GDS": {
+      "min": 0,
+      "max": 15,
+      "description": "15-item short form, 0-15"
+    },
+    "PIGD": {
+      "min": 0.0,
+      "max": 4.0,
+      "description": "MDS-UPDRS PIGD score (OFF state)"
+    },
+    "H&Y": {
+      "min": 0,
+      "max": 5,
+      "description": "Modified Hoehn and Yahr stage, 0-5"
+    },
+    "UPDRS-III": {
+      "min": 0,
+      "max": 132,
+      "description": "MDS-UPDRS Part III motor score (OFF state)"
+    }
+  },
+  "test_performance_bootstrap": {
+    "AUROC": {
+      "point_estimate": 0.6668,
+      "ci_lower": 0.5991,
+      "ci_upper": 0.73
+    },
+    "AUPRC": {
+      "point_estimate": 0.3068,
+      "ci_lower": 0.222,
+      "ci_upper": 0.414
+    },
+    "Brier": {
+      "point_estimate": 0.1236,
+      "ci_lower": 0.1046,
+      "ci_upper": 0.1449
+    },
+    "Calibration_Slope": {
+      "point_estimate": 0.8345,
+      "ci_lower": 0.5087,
+      "ci_upper": 1.1768
+    },
+    "Joint_Recalibration_Intercept": {
+      "point_estimate": -0.3158,
+      "ci_lower": -0.8814,
+      "ci_upper": 0.2226
+    },
+    "Accuracy_Default": {
+      "point_estimate": 0.85,
+      "ci_lower": 0.818,
+      "ci_upper": 0.88
+    },
+    "Balanced_Accuracy_Default": {
+      "point_estimate": 0.5401,
+      "ci_lower": 0.5104,
+      "ci_upper": 0.5741
+    },
+    "Precision_Default": {
+      "point_estimate": 0.6364,
+      "ci_lower": 0.3333,
+      "ci_upper": 0.9091
+    },
+    "NPV_Default": {
+      "point_estimate": 0.8548,
+      "ci_lower": 0.8228,
+      "ci_upper": 0.8841
+    },
+    "Sensitivity_Default": {
+      "point_estimate": 0.0897,
+      "ci_lower": 0.0303,
+      "ci_upper": 0.1579
+    },
+    "Specificity_Default": {
+      "point_estimate": 0.9905,
+      "ci_lower": 0.9809,
+      "ci_upper": 0.9977
+    },
+    "F1_Score_Default": {
+      "point_estimate": 0.1573,
+      "ci_lower": 0.0555,
+      "ci_upper": 0.26
+    },
+    "Cohen_Kappa_Default": {
+      "point_estimate": 0.1235,
+      "ci_lower": 0.0331,
+      "ci_upper": 0.2214
+    },
+    "Accuracy_F1": {
+      "point_estimate": 0.73,
+      "ci_lower": 0.69,
+      "ci_upper": 0.77
+    },
+    "Balanced_Accuracy_F1": {
+      "point_estimate": 0.5736,
+      "ci_lower": 0.5192,
+      "ci_upper": 0.6271
+    },
+    "Precision_F1": {
+      "point_estimate": 0.2432,
+      "ci_lower": 0.1653,
+      "ci_upper": 0.3243
+    },
+    "NPV_F1": {
+      "point_estimate": 0.8689,
+      "ci_lower": 0.8342,
+      "ci_upper": 0.8992
+    },
+    "Sensitivity_F1": {
+      "point_estimate": 0.3462,
+      "ci_lower": 0.2428,
+      "ci_upper": 0.4483
+    },
+    "Specificity_F1": {
+      "point_estimate": 0.8009,
+      "ci_lower": 0.7623,
+      "ci_upper": 0.8405
+    },
+    "F1_Score_F1": {
+      "point_estimate": 0.2857,
+      "ci_lower": 0.2022,
+      "ci_upper": 0.3646
+    },
+    "Cohen_Kappa_F1": {
+      "point_estimate": 0.1255,
+      "ci_lower": 0.0322,
+      "ci_upper": 0.2167
+    },
+    "Accuracy_Youden": {
+      "point_estimate": 0.65,
+      "ci_lower": 0.61,
+      "ci_upper": 0.69
+    },
+    "Balanced_Accuracy_Youden": {
+      "point_estimate": 0.5993,
+      "ci_lower": 0.54,
+      "ci_upper": 0.6579
+    },
+    "Precision_Youden": {
+      "point_estimate": 0.2291,
+      "ci_lower": 0.1685,
+      "ci_upper": 0.2914
+    },
+    "NPV_Youden": {
+      "point_estimate": 0.8847,
+      "ci_lower": 0.8474,
+      "ci_upper": 0.918
+    },
+    "Sensitivity_Youden": {
+      "point_estimate": 0.5256,
+      "ci_lower": 0.4177,
+      "ci_upper": 0.6316
+    },
+    "Specificity_Youden": {
+      "point_estimate": 0.673,
+      "ci_lower": 0.6302,
+      "ci_upper": 0.716
+    },
+    "F1_Score_Youden": {
+      "point_estimate": 0.3191,
+      "ci_lower": 0.2441,
+      "ci_upper": 0.3901
+    },
+    "Cohen_Kappa_Youden": {
+      "point_estimate": 0.13,
+      "ci_lower": 0.0519,
+      "ci_upper": 0.2102
+    }
+  },
+  "shrinkage": {
+    "method": "Bootstrap uniform shrinkage (full LASSO 1SE + unpenalized LR refit per resample)",
+    "n_bootstrap": 500,
+    "shrinkage_factor": 0.8144416945388391,
+    "optimism_corrected_auc_train": 0.6541996539829545,
+    "intercept": -0.04110293909434354,
+    "coefficients": {
+      "SEX": 0.6388105273656861,
+      "EDUCYRS": -0.10981708645932939,
+      "fampd_bin": 0.26868132207761325,
+      "sym_other": -0.406662634475315,
+      "upsit_pctl": -0.00599918598157649,
+      "gds": 0.07785144368662059,
+      "MIA_CAUDATE_mean": -0.6052616361432746
+    },
+    "thresholds": {
+      "default": 0.5,
+      "youden": 0.1726,
+      "f1": 0.2106
+    },
+    "test_performance_bootstrap": {
+      "AUROC": {
+        "point_estimate": 0.6668,
+        "ci_lower": 0.5991,
+        "ci_upper": 0.73
+      },
+      "AUPRC": {
+        "point_estimate": 0.3068,
+        "ci_lower": 0.222,
+        "ci_upper": 0.414
+      },
+      "Brier": {
+        "point_estimate": 0.1233,
+        "ci_lower": 0.1042,
+        "ci_upper": 0.1448
+      },
+      "Calibration_Slope": {
+        "point_estimate": 1.0244,
+        "ci_lower": 0.6249,
+        "ci_upper": 1.445
+      },
+      "Joint_Recalibration_Intercept": {
+        "point_estimate": -0.0215,
+        "ci_lower": -0.6943,
+        "ci_upper": 0.6319
+      },
+      "Accuracy_Default": {
+        "point_estimate": 0.844,
+        "ci_lower": 0.81,
+        "ci_upper": 0.874
+      },
+      "Balanced_Accuracy_Default": {
+        "point_estimate": 0.5052,
+        "ci_lower": 0.4966,
+        "ci_upper": 0.5201
+      },
+      "Precision_Default": {
+        "point_estimate": 0.5,
+        "ci_lower": 0.0,
+        "ci_upper": 1.0
+      },
+      "NPV_Default": {
+        "point_estimate": 0.8454,
+        "ci_lower": 0.812,
+        "ci_upper": 0.8758
+      },
+      "Sensitivity_Default": {
+        "point_estimate": 0.0128,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0426
+      },
+      "Specificity_Default": {
+        "point_estimate": 0.9976,
+        "ci_lower": 0.9927,
+        "ci_upper": 1.0
+      },
+      "F1_Score_Default": {
+        "point_estimate": 0.025,
+        "ci_lower": 0.0,
+        "ci_upper": 0.079
+      },
+      "Cohen_Kappa_Default": {
+        "point_estimate": 0.0173,
+        "ci_lower": -0.0116,
+        "ci_upper": 0.0652
+      },
+      "Accuracy_F1": {
+        "point_estimate": 0.73,
+        "ci_lower": 0.69,
+        "ci_upper": 0.77
+      },
+      "Balanced_Accuracy_F1": {
+        "point_estimate": 0.5736,
+        "ci_lower": 0.5192,
+        "ci_upper": 0.6271
+      },
+      "Precision_F1": {
+        "point_estimate": 0.2432,
+        "ci_lower": 0.1653,
+        "ci_upper": 0.3243
+      },
+      "NPV_F1": {
+        "point_estimate": 0.8689,
+        "ci_lower": 0.8342,
+        "ci_upper": 0.8992
+      },
+      "Sensitivity_F1": {
+        "point_estimate": 0.3462,
+        "ci_lower": 0.2428,
+        "ci_upper": 0.4483
+      },
+      "Specificity_F1": {
+        "point_estimate": 0.8009,
+        "ci_lower": 0.7623,
+        "ci_upper": 0.8405
+      },
+      "F1_Score_F1": {
+        "point_estimate": 0.2857,
+        "ci_lower": 0.2022,
+        "ci_upper": 0.3646
+      },
+      "Cohen_Kappa_F1": {
+        "point_estimate": 0.1255,
+        "ci_lower": 0.0322,
+        "ci_upper": 0.2167
+      },
+      "Accuracy_Youden": {
+        "point_estimate": 0.648,
+        "ci_lower": 0.608,
+        "ci_upper": 0.688
+      },
+      "Balanced_Accuracy_Youden": {
+        "point_estimate": 0.5981,
+        "ci_lower": 0.539,
+        "ci_upper": 0.6574
+      },
+      "Precision_Youden": {
+        "point_estimate": 0.2278,
+        "ci_lower": 0.1676,
+        "ci_upper": 0.2898
+      },
+      "NPV_Youden": {
+        "point_estimate": 0.8844,
+        "ci_lower": 0.8471,
+        "ci_upper": 0.9179
+      },
+      "Sensitivity_Youden": {
+        "point_estimate": 0.5256,
+        "ci_lower": 0.4177,
+        "ci_upper": 0.6316
+      },
+      "Specificity_Youden": {
+        "point_estimate": 0.6706,
+        "ci_lower": 0.6276,
+        "ci_upper": 0.7136
+      },
+      "F1_Score_Youden": {
+        "point_estimate": 0.3178,
+        "ci_lower": 0.2437,
+        "ci_upper": 0.3889
+      },
+      "Cohen_Kappa_Youden": {
+        "point_estimate": 0.128,
+        "ci_lower": 0.0502,
+        "ci_upper": 0.2079
+      }
+    }
+  },
+  "legacy_development_status": "Top-level coefficients/performance are the unshrunk development fit; shrinkage is the step 14 development export with its older ten-fold threshold. Use final_model for the manuscript model.",
+  "final_model": {
+    "schema_version": "1.0",
+    "model_version": "v1.9",
+    "status": "final_manuscript_model",
+    "model_type": "Logistic regression with bootstrap uniform shrinkage",
+    "target": "Concurrent PPMI cognitive-test-based PD-MCI indicator at baseline",
+    "intended_population": "Baseline participants in the PPMI PD cohort; no disease-duration restriction",
+    "coefficient_scale": "original predictor units; do not z-standardize inputs",
+    "intercept": -0.0411029390943435,
+    "coefficients": {
+      "SEX": 0.6388105273656861,
+      "EDUCYRS": -0.1098170864593293,
+      "fampd_bin": 0.2686813220776132,
+      "sym_other": -0.406662634475315,
+      "upsit_pctl": -0.0059991859815764,
+      "gds": 0.0778514436866205,
+      "MIA_CAUDATE_mean": -0.6052616361432746
+    },
+    "feature_order": [
+      "SEX",
+      "EDUCYRS",
+      "fampd_bin",
+      "sym_other",
+      "upsit_pctl",
+      "gds",
+      "MIA_CAUDATE_mean"
+    ],
+    "shrinkage_factor": 0.8144416945388391,
+    "thresholds": {
+      "youden": 0.2003183883873819
+    },
+    "threshold_method": "Youden index of pooled five-fold training OOF predictions; seven predictors and shrinkage factor fixed in each fold",
+    "predictors": {
+      "SEX": {
+        "type": "binary",
+        "unit": "0=female, 1=male",
+        "imputation": {
+          "strategy": "training_mode",
+          "value": 1
+        },
+        "training_observed_range": [
+          0.0,
+          1.0
+        ]
+      },
+      "EDUCYRS": {
+        "type": "numeric_score_or_measure",
+        "unit": "years, capped at 20",
+        "imputation": {
+          "strategy": "training_median",
+          "value": 16.0
+        },
+        "training_observed_range": [
+          4.0,
+          20.0
+        ],
+        "upper_cap": 20
+      },
+      "fampd_bin": {
+        "type": "binary",
+        "unit": "0=no, 1=yes",
+        "imputation": {
+          "strategy": "training_mode",
+          "value": 0
+        },
+        "training_observed_range": [
+          0.0,
+          1.0
+        ]
+      },
+      "sym_other": {
+        "type": "binary",
+        "unit": "0=no, 1=yes",
+        "imputation": {
+          "strategy": "training_mode",
+          "value": 0.0
+        },
+        "training_observed_range": [
+          0.0,
+          1.0
+        ]
+      },
+      "upsit_pctl": {
+        "type": "numeric_score_or_measure",
+        "unit": "age- and sex-adjusted percentile",
+        "imputation": {
+          "strategy": "training_median",
+          "value": 10.0
+        },
+        "training_observed_range": [
+          1.0,
+          100.0
+        ],
+        "instrument_range": [
+          0,
+          100
+        ]
+      },
+      "gds": {
+        "type": "numeric_score_or_measure",
+        "unit": "points (15-item GDS)",
+        "imputation": {
+          "strategy": "training_median",
+          "value": 2.0
+        },
+        "training_observed_range": [
+          0.0,
+          14.0
+        ],
+        "instrument_range": [
+          0,
+          15
+        ]
+      },
+      "MIA_CAUDATE_mean": {
+        "type": "numeric_score_or_measure",
+        "unit": "bilateral caudate specific binding ratio (MIAKAT, white-matter reference)",
+        "imputation": {
+          "strategy": "training_median",
+          "value": 0.8
+        },
+        "training_observed_range": [
+          0.02,
+          1.91
+        ]
+      }
+    },
+    "test_performance": {
+      "AUROC": 0.6668337586584032,
+      "AUPRC": 0.3068332811980681,
+      "Brier": 0.1233249433957812,
+      "LogLoss": 0.4055007122053498,
+      "Calib_Slope": 1.0244854409796953,
+      "Calib_Intercept": -0.0213425021582807,
+      "Accuracy": 0.712,
+      "Balanced_Acc": 0.5890144610523758,
+      "Sensitivity": 0.4102564102564102,
+      "Specificity": 0.7677725118483413,
+      "PPV": 0.2461538461538461,
+      "NPV": 0.8756756756756757,
+      "F1": 0.3076923076923077,
+      "Threshold": 0.2003183883873819
+    },
+    "test_performance_ci": {
+      "Threshold": 0.2003183883873819,
+      "AUROC": 0.6668337586584032,
+      "AUROC_CI_lower": 0.5991253509871314,
+      "AUROC_CI_upper": 0.729956881485097,
+      "AUPRC": 0.3068332811980681,
+      "AUPRC_CI_lower": 0.221984887539579,
+      "AUPRC_CI_upper": 0.4140238114607412,
+      "Brier": 0.1233249433957812,
+      "Brier_CI_lower": 0.1042493240669661,
+      "Brier_CI_upper": 0.1448261243332367,
+      "LogLoss": 0.4055007122053498,
+      "LogLoss_CI_lower": 0.3564072891530611,
+      "LogLoss_CI_upper": 0.4593537594912015,
+      "Calib_Slope": 1.0244854409796953,
+      "Calib_Slope_CI_lower": 0.6252862647416599,
+      "Calib_Slope_CI_upper": 1.444800118490264,
+      "Calib_Intercept": -0.0213425021582807,
+      "Calib_Intercept_CI_lower": -0.6925924291511624,
+      "Calib_Intercept_CI_upper": 0.6314563706781292,
+      "Sensitivity": 0.4102564102564102,
+      "Sensitivity_CI_lower": 0.3030203349282296,
+      "Sensitivity_CI_upper": 0.5158359133126933,
+      "Specificity": 0.7677725118483413,
+      "Specificity_CI_lower": 0.7270588235294118,
+      "Specificity_CI_upper": 0.8085106382978723,
+      "PPV": 0.2461538461538461,
+      "PPV_CI_lower": 0.172124743852459,
+      "PPV_CI_upper": 0.3233241554590701,
+      "NPV": 0.8756756756756757,
+      "NPV_CI_lower": 0.8410958904109589,
+      "NPV_CI_upper": 0.907656899128358,
+      "Balanced_Acc": 0.5890144610523758,
+      "Balanced_Acc_CI_lower": 0.5309451112599841,
+      "Balanced_Acc_CI_upper": 0.646502632507888,
+      "F1": 0.3076923076923077,
+      "F1_CI_lower": 0.2211055276381909,
+      "F1_CI_upper": 0.3862792533808404
+    },
+    "sources": {
+      "coefficients": "step_14_shrunk_coefficients.csv",
+      "performance_and_threshold": "step_21_benchmark_test_metrics_7feat.csv",
+      "confidence_intervals": "step_21_benchmark_model_ci_7feat.csv"
+    },
+    "test_confusion_matrix": {
+      "TN": 324,
+      "FP": 98,
+      "FN": 46,
+      "TP": 32
+    }
+  }
+}

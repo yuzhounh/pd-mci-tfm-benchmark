@@ -1,3 +1,10 @@
+"""Shared helpers for model evaluation and figures.
+
+Includes data loading, cross-validation, threshold selection, performance
+metrics, and the ROC/PR, SHAP, calibration, decision-curve and clinical-impact
+plots.
+"""
+
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +29,7 @@ from sklearn.inspection import permutation_importance
 import shap
 from matplotlib.font_manager import FontProperties
 
-# 统一作图字体为 Arial
+# Use Arial for all figures
 plt.rcParams["font.sans-serif"] = ["Arial"]
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["axes.unicode_minus"] = True
@@ -31,10 +38,7 @@ plt.rcParams["mathtext.rm"] = "Arial"
 plt.rcParams["mathtext.it"] = "Arial:italic"
 plt.rcParams["mathtext.bf"] = "Arial:bold"
 
-# 图例对齐：等宽字体
-LEGEND_NAME_WIDTH = 6
-mono_font = FontProperties(family=["Consolas", "monospace"], size=10)
-
+import figstyle as fs
 
 
 def load_data(train_file, test_file, feature_mapping_file):
@@ -196,12 +200,12 @@ def plot_roc_pr_curves(
     fpr, tpr, _ = roc_curve(y_true, y_prob)
     auc_roc = roc_auc_score(y_true, y_prob)
 
-    label_roc = f"{model_name:<{LEGEND_NAME_WIDTH}}: {auc_roc:.4f}"
-    random_roc_label = f"{'Random':<{LEGEND_NAME_WIDTH}}: {0.5:.4f}"
-
     curve_color = "#1f77b4"
-    ax1.plot(fpr, tpr, color=curve_color, label=label_roc, linewidth=2)
-    ax1.plot([0, 1], [0, 1], "k--", alpha=0.5, label=random_roc_label)
+    h1 = [
+        ax1.plot(fpr, tpr, color=curve_color, linewidth=2)[0],
+        ax1.plot([0, 1], [0, 1], "k--", alpha=0.5)[0],
+    ]
+    n1, v1 = [model_name, "Random"], [f"{auc_roc:.4f}", f"{0.5:.4f}"]
     if roc_ci is not None:
         ax1.fill_between(
             roc_grid,
@@ -210,8 +214,10 @@ def plot_roc_pr_curves(
             color=curve_color,
             alpha=0.18,
             linewidth=0,
-            label=f"{'95% CI':<{LEGEND_NAME_WIDTH}}",
         )
+        h1.append(ax1.collections[-1])
+        n1.append("95% CI")
+        v1.append("")
 
     ax1.set_xlabel("1 - Specificity", fontsize=12)
     ax1.set_ylabel("Sensitivity", fontsize=12)
@@ -219,19 +225,19 @@ def plot_roc_pr_curves(
     ax1.set_ylim([-0.02, 1.02])
     ax1.grid(True, alpha=0.3)
 
-    legend1 = ax1.legend(
-        title="Model (AUROC)",
-        loc="lower right",
-        prop=mono_font,
-        alignment="left",
+    fs.table_legend(
+        ax1, h1, n1, [("AUROC", v1)], "Model", fontsize=9, loc="lower right"
     )
-    plt.setp(legend1.get_title(), fontsize=9, weight="bold")
 
     ax1.text(
-        -0.09, 1.05, "A",
+        -0.09,
+        1.05,
+        "A",
         transform=ax1.transAxes,
-        fontsize=14, fontweight="bold",
-        va="bottom", ha="left",
+        fontsize=14,
+        fontweight="bold",
+        va="bottom",
+        ha="left",
     )
 
     # ── PR curve ───────────────────────────────────────────────────────────
@@ -239,15 +245,11 @@ def plot_roc_pr_curves(
     auc_pr = average_precision_score(y_true, y_prob)
     baseline = np.mean(y_true)
 
-    label_pr = f"{model_name:<{LEGEND_NAME_WIDTH}}: {auc_pr:.4f}"
-    random_pr_label = f"{'Random':<{LEGEND_NAME_WIDTH}}: {baseline:.4f}"
-
-    ax2.plot(recall, precision, color=curve_color, label=label_pr, linewidth=2)
-    ax2.axhline(
-        y=baseline,
-        color="k", linestyle="--", alpha=0.5,
-        label=random_pr_label,
-    )
+    h2 = [
+        ax2.plot(recall, precision, color=curve_color, linewidth=2)[0],
+        ax2.axhline(y=baseline, color="k", linestyle="--", alpha=0.5),
+    ]
+    n2, v2 = [model_name, "Random"], [f"{auc_pr:.4f}", f"{baseline:.4f}"]
     if pr_ci is not None:
         ax2.fill_between(
             pr_grid,
@@ -256,8 +258,10 @@ def plot_roc_pr_curves(
             color=curve_color,
             alpha=0.18,
             linewidth=0,
-            label=f"{'95% CI':<{LEGEND_NAME_WIDTH}}",
         )
+        h2.append(ax2.collections[-1])
+        n2.append("95% CI")
+        v2.append("")
 
     ax2.set_xlabel("Recall", fontsize=12)
     ax2.set_ylabel("Precision", fontsize=12)
@@ -265,19 +269,19 @@ def plot_roc_pr_curves(
     ax2.set_ylim([-0.02, 1.02])
     ax2.grid(True, alpha=0.3)
 
-    legend2 = ax2.legend(
-        title="Model (AUPRC)",
-        loc="upper right",
-        prop=mono_font,
-        alignment="left",
+    fs.table_legend(
+        ax2, h2, n2, [("AUPRC", v2)], "Model", fontsize=9, loc="upper right"
     )
-    plt.setp(legend2.get_title(), fontsize=9, weight="bold")
 
     ax2.text(
-        -0.09, 1.05, "B",
+        -0.09,
+        1.05,
+        "B",
         transform=ax2.transAxes,
-        fontsize=14, fontweight="bold",
-        va="bottom", ha="left",
+        fontsize=14,
+        fontweight="bold",
+        va="bottom",
+        ha="left",
     )
 
     plt.tight_layout()
@@ -341,63 +345,63 @@ def print_results(model_name, metrics, optimal_threshold):
 
 def plot_nomogram(coefficients, intercept, feature_names, save_path="nomogram.pdf"):
     """
-    绘制列线图
+    Plot a nomogram.
 
-    参数:
-        coefficients: 模型系数
-        intercept: 截距
-        feature_names: 特征名称列表
-        save_path: 保存路径
+    Parameters:
+        coefficients: model coefficients
+        intercept: intercept
+        feature_names: list of feature names
+        save_path: output path
     """
     fig, ax = plt.subplots(figsize=(12, len(feature_names) * 0.8 + 4))
 
-    # 计算每个特征的分数范围
+    # Point range of each feature
     n_features = len(feature_names)
 
-    # 设置点数范围（假设特征已标准化，范围约为 -3 到 3）
+    # Point range (features assumed standardised, roughly -3 to 3)
     feature_range = np.linspace(-3, 3, 100)
 
-    # 为每个特征创建一行
+    # One row per feature
     y_pos = np.arange(n_features + 2, 0, -1)
 
-    # 1. 绘制总分尺度
+    # 1. Total-points scale
     ax.plot([0, 100], [y_pos[0], y_pos[0]], "k-", linewidth=2)
     for i in range(0, 101, 10):
         ax.plot([i, i], [y_pos[0] - 0.1, y_pos[0] + 0.1], "k-", linewidth=1)
         ax.text(i, y_pos[0] + 0.3, str(i), ha="center", fontsize=10)
     ax.text(50, y_pos[0] + 0.8, "Total Points", ha="center", fontsize=12)
 
-    # 2. 为每个特征绘制尺度
+    # 2. A scale for each feature
     max_abs_coef = np.max(np.abs(coefficients))
 
     for i, (coef, name) in enumerate(zip(coefficients, feature_names)):
         y = y_pos[i + 1]
 
-        # 计算该特征的点数贡献（归一化到 0-100）
+        # Point contribution of the feature (normalised to 0-100)
         points = (feature_range * coef / max_abs_coef) * 50 + 50
 
-        # 绘制特征尺度线
+        # Feature scale line
         ax.plot([0, 100], [y, y], "k-", linewidth=1.5)
 
-        # 绘制刻度
+        # Tick marks
         for j in range(0, 101, 20):
-            # 找到对应的特征值
+            # Corresponding feature value
             feature_val = (j - 50) / 50 * max_abs_coef / coef if coef != 0 else 0
             ax.plot([j, j], [y - 0.1, y + 0.1], "k-", linewidth=1)
             ax.text(j, y - 0.4, f"{feature_val:.2f}", ha="center", fontsize=8)
 
-        # 特征名称
+        # Feature name
         ax.text(-5, y, name, ha="right", va="center", fontsize=10)
 
-    # 3. 绘制预测概率尺度
+    # 3. Predicted-probability scale
     y = y_pos[-1]
     ax.plot([0, 100], [y, y], "k-", linewidth=2)
 
-    # 计算概率对应的点数
+    # Points corresponding to each probability
     prob_range = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
     logit_range = np.log(prob_range / (1 - prob_range))
 
-    # 归一化到 0-100
+    # Normalise to 0-100
     logit_min = np.log(0.01 / 0.99)
     logit_max = np.log(0.99 / 0.01)
     points_range = ((logit_range - logit_min) / (logit_max - logit_min)) * 100
@@ -409,7 +413,7 @@ def plot_nomogram(coefficients, intercept, feature_names, save_path="nomogram.pd
 
     ax.text(50, y + 0.8, "Predicted Probability", ha="center", fontsize=12)
 
-    # 设置图形属性
+    # Axes settings
     ax.set_xlim(-10, 105)
     ax.set_ylim(0, n_features + 3)
     ax.axis("off")
@@ -422,46 +426,46 @@ def plot_nomogram(coefficients, intercept, feature_names, save_path="nomogram.pd
 
 def plot_decision_curve_analysis(y_true, y_prob, save_path="decision_curve.pdf"):
     """
-    绘制决策曲线分析（DCA）
+    Plot a decision curve analysis (DCA).
 
-    参数:
-        y_true: 真实标签
-        y_prob: 预测概率
-        save_path: 保存路径
+    Parameters:
+        y_true: observed labels
+        y_prob: predicted probabilities
+        save_path: output path
     """
-    # 阈值概率范围
+    # Threshold probabilities
     thresholds = np.linspace(0.01, 0.99, 100)
 
     net_benefits = []
     net_benefit_all = []
 
     for threshold in thresholds:
-        # 将概率转换为预测
+        # Classify at the threshold
         y_pred = (y_prob >= threshold).astype(int)
 
-        # 计算真阳性和假阳性
+        # True and false positives
         TP = np.sum((y_pred == 1) & (y_true == 1))
         FP = np.sum((y_pred == 1) & (y_true == 0))
         n = len(y_true)
 
-        # 计算净收益
+        # Net benefit
         net_benefit = (TP / n) - (FP / n) * (threshold / (1 - threshold))
         net_benefits.append(net_benefit)
 
-        # 全部治疗的净收益
+        # Net benefit of treating all
         prevalence = np.sum(y_true) / n
         net_benefit_treat_all = prevalence - (1 - prevalence) * (
             threshold / (1 - threshold)
         )
         net_benefit_all.append(net_benefit_treat_all)
 
-    # 绘图
+    # Plot
     fig, ax = plt.subplots(figsize=(5, 4))
 
-    # 绘制模型的决策曲线
+    # Model decision curve
     ax.plot(thresholds, net_benefits, label="Model", linewidth=2, color="#2E86AB")
 
-    # 绘制全部治疗曲线
+    # Treat-all curve
     ax.plot(
         thresholds,
         net_benefit_all,
@@ -471,10 +475,10 @@ def plot_decision_curve_analysis(y_true, y_prob, save_path="decision_curve.pdf")
         color="#A23B72",
     )
 
-    # 绘制不治疗曲线（净收益为 0）
+    # Treat-none curve (net benefit 0)
     ax.axhline(y=0, color="#F18F01", linestyle="--", linewidth=2, label="Treat None")
 
-    # 设置图形属性
+    # Axes settings
     ax.set_xlabel("Threshold Probability", fontsize=12)
     ax.set_ylabel("Net Benefit", fontsize=12)
     ax.set_title("Decision Curve Analysis", fontsize=14)
@@ -489,9 +493,9 @@ def plot_decision_curve_analysis(y_true, y_prob, save_path="decision_curve.pdf")
 
 def plot_decision_curve_analysis_v2(y_true, y_prob, save_path="LR_decision_curve.pdf"):
     """
-    绘制决策曲线分析 (DCA)
+    Plot a decision curve analysis (DCA).
 
-    三条曲线:
+    Three curves:
         1. Model:      nb = TP/n - (FP/n) * (pt / (1-pt))
         2. Treat All:  nb = prevalence - (1-prevalence) * (pt / (1-pt))
         3. Treat None: nb = 0
@@ -518,7 +522,7 @@ def plot_decision_curve_analysis_v2(y_true, y_prob, save_path="LR_decision_curve
 
     nb_treat_none = np.zeros(len(thresholds))
 
-    # ---- 绘图 ----
+    # ---- Plot ----
     fig, ax = plt.subplots(figsize=(5, 4))
 
     ax.plot(
@@ -546,7 +550,7 @@ def plot_decision_curve_analysis_v2(y_true, y_prob, save_path="LR_decision_curve
         label="Treat None",
     )
 
-    # y 轴范围
+    # y-axis range
     valid = np.isfinite(nb_treat_all)
     y_max = max(np.nanmax(nb_model), np.nanmax(nb_treat_all[valid]), 0) + 0.05
     ax.set_ylim(-0.1, y_max)
@@ -570,26 +574,26 @@ def plot_calibration_curve_analysis(
     y_true, y_prob, save_path="calibration_curve.pdf", n_bins=10
 ):
     """
-    绘制校正曲线
+    Plot the calibration curve.
 
-    参数:
-        y_true: 真实标签
-        y_prob: 预测概率
-        save_path: 保存路径
-        n_bins: 分箱数量
+    Parameters:
+        y_true: observed labels
+        y_prob: predicted probabilities
+        save_path: output path
+        n_bins: number of bins
     """
-    # 计算校正曲线
+    # Calibration curve
     fraction_of_positives, mean_predicted_value = calibration_curve(
         y_true, y_prob, n_bins=n_bins, strategy="quantile"
     )
 
-    # 计算 Brier 分数
+    # Brier score
     brier_score = brier_score_loss(y_true, y_prob)
 
-    # 绘图
+    # Plot
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
-    # 左图：校正曲线
+    # Left: calibration curve
     ax1.plot(
         [0, 1],
         [0, 1],
@@ -616,7 +620,7 @@ def plot_calibration_curve_analysis(
     ax1.set_xlim([0, 1])
     ax1.set_ylim([0, 1])
 
-    # 在图中标注 Brier 分数
+    # Annotate the Brier score
     ax1.text(
         0.95,
         0.05,
@@ -627,7 +631,7 @@ def plot_calibration_curve_analysis(
         horizontalalignment="right",
     )
 
-    # 右图：预测概率分布直方图
+    # Right: histogram of predicted probabilities
     ax2.hist(
         y_prob[y_true == 0],
         bins=20,
@@ -657,37 +661,37 @@ def plot_calibration_curve_analysis(
 
 def plot_clinical_impact_curve(y_true, y_prob, save_path="clinical_impact_curve.pdf"):
     """
-    绘制临床影响曲线（Clinical Impact Curve）
+    Plot the clinical impact curve.
 
-    参数:
-        y_true: 真实标签
-        y_prob: 预测概率
-        save_path: 保存路径
+    Parameters:
+        y_true: observed labels
+        y_prob: predicted probabilities
+        save_path: output path
     """
-    # 阈值概率范围
+    # Threshold probabilities
     thresholds = np.linspace(0.01, 0.99, 100)
 
     n = len(y_true)
-    n_high_risk = []  # 被分类为高风险的人数
-    n_high_risk_with_outcome = []  # 高风险中真正发生事件的人数
+    n_high_risk = []  # number classified as high risk
+    n_high_risk_with_outcome = []  # number of high-risk cases with the outcome
 
     for threshold in thresholds:
-        # 将概率转换为预测
+        # Classify at the threshold
         y_pred = (y_prob >= threshold).astype(int)
 
-        # 计算被分类为高风险的人数（每1000人）
+        # Number classified as high risk (per 1000)
         n_classified_high_risk = np.sum(y_pred) / n * 1000
         n_high_risk.append(n_classified_high_risk)
 
-        # 计算高风险中真阳性的人数（每1000人）
+        # Number of true positives among them (per 1000)
         TP = np.sum((y_pred == 1) & (y_true == 1))
         n_tp = TP / n * 1000
         n_high_risk_with_outcome.append(n_tp)
 
-    # 绘图
+    # Plot
     fig, ax = plt.subplots(figsize=(5, 4))
 
-    # 绘制被分类为高风险的人数
+    # Plot the number classified as high risk
     ax.plot(
         thresholds,
         n_high_risk,
@@ -697,7 +701,7 @@ def plot_clinical_impact_curve(y_true, y_prob, save_path="clinical_impact_curve.
         linestyle="-",
     )
 
-    # 绘制高风险中真阳性的人数
+    # Plot the number of true positives
     ax.plot(
         thresholds,
         n_high_risk_with_outcome,
@@ -707,7 +711,7 @@ def plot_clinical_impact_curve(y_true, y_prob, save_path="clinical_impact_curve.
         linestyle="--",
     )
 
-    # 设置图形属性
+    # Axes settings
     ax.set_xlabel("Threshold Probability", fontsize=12)
     ax.set_ylabel("Number per 1000 Visits", fontsize=12)
     ax.set_title("Clinical Impact Curve", fontsize=14)
@@ -716,7 +720,7 @@ def plot_clinical_impact_curve(y_true, y_prob, save_path="clinical_impact_curve.
     ax.set_xlim([0, 1])
     ax.set_ylim([0, max(n_high_risk) * 1.1])
 
-    # 添加说明文本
+    # Explanatory text
     prevalence = np.sum(y_true) / n
     ax.text(
         0.95,
@@ -738,7 +742,7 @@ def plot_combined_analysis(
     y_true, y_prob, save_path="combined_analysis.pdf", n_bins=10
 ):
     """
-    将校正曲线、预测概率分布、DCA曲线、CIC曲线整合到 2×2 网格中
+    Combine the calibration curve, probability distribution, DCA and CIC in a 2x2 grid.
     """
     y_true = np.array(y_true)
     y_prob = np.array(y_prob)
@@ -748,7 +752,7 @@ def plot_combined_analysis(
     fig, axes = plt.subplots(2, 2, figsize=(10, 8))
     ax_cal, ax_hist, ax_dca, ax_cic = axes[0, 0], axes[0, 1], axes[1, 0], axes[1, 1]
 
-    # ── 左上：校正曲线 ──────────────────────────────────────────────
+    # Top left: calibration curve
     fraction_of_positives, mean_predicted_value = calibration_curve(
         y_true, y_prob, n_bins=n_bins, strategy="quantile"
     )
@@ -789,7 +793,7 @@ def plot_combined_analysis(
         ha="right",
     )
 
-    # ── 右上：预测概率分布 ──────────────────────────────────────────
+    # Top right: distribution of predicted probabilities
     ax_hist.hist(
         y_prob[y_true == 0],
         bins=20,
@@ -812,7 +816,7 @@ def plot_combined_analysis(
     ax_hist.legend(loc="upper right", fontsize=9)
     ax_hist.grid(True, alpha=0.3, axis="y")
 
-    # ── 左下：DCA 曲线 ──────────────────────────────────────────────
+    # Bottom left: decision curve
     thresholds = np.arange(0, 1.00, 0.01)
     nb_model = np.zeros(len(thresholds))
     nb_treat_all = np.zeros(len(thresholds))
@@ -854,7 +858,7 @@ def plot_combined_analysis(
     ax_dca.legend(loc="upper right", fontsize=9)
     ax_dca.grid(True, linestyle="--", alpha=0.35, linewidth=0.8)
 
-    # ── 右下：CIC 曲线 ──────────────────────────────────────────────
+    # Bottom right: clinical impact curve
     thresholds_cic = np.linspace(0.01, 0.99, 100)
     n_high_risk, n_high_risk_with_outcome = [], []
 
@@ -896,7 +900,7 @@ def plot_combined_analysis(
         ha="right",
     )
 
-    # 统一添加子图编号
+    # Panel letters
     for ax, label in zip(axes.flat, ["A", "B", "C", "D"]):
         ax.text(
             -0.08,

@@ -1,16 +1,16 @@
 """
 Bootstrap uniform shrinkage of the step 13 logistic-regression model.
 
-方法学说明（Harrell / Steyerberg 的 bootstrap 均一收缩）：
-1. 在训练集上有放回抽样得到 bootstrap 样本；
-2. 在 bootstrap 样本上完整重复建模流程：LASSO（10 折分层 CV、折内标准化、
-   AUPRC、1SE 规则，与 step 12 一致）选择变量 → 无惩罚 LR 拟合（与 step 13 一致）；
-3. 将该模型应用到原始训练集，估计校准斜率 b_i 与 AUC；
-4. 收缩因子 S = mean(b_i)；optimism = mean(AUC_boot - AUC_orig)；
-5. 最终模型所有非截距系数乘以 S，再以 offset 方式重新估计截距，
-   使训练集平均预测概率等于实际患病率。
+Method (bootstrap uniform shrinkage, Harrell / Steyerberg):
+1. Draw a bootstrap sample from the training set with replacement;
+2. Repeat the full modelling procedure on it: LASSO (10-fold stratified CV, in-fold standardisation,
+      AUPRC, 1-SE rule, as in step 12) followed by an unpenalised LR (as in step 13);
+3. Apply that model to the original training set and estimate the calibration slope b_i and the AUC;
+4. Shrinkage factor S = mean(b_i); optimism = mean(AUC_boot - AUC_orig);
+5. Multiply all non-intercept coefficients of the final model by S and re-estimate the intercept with an offset,
+      so that the mean predicted probability in the training set equals the observed prevalence.
 
-收缩因子只由训练集估计，测试集仅用于最终评估。
+The shrinkage factor is estimated on the training set only; the test set is used only for the final evaluation.
 """
 
 import json
@@ -50,18 +50,24 @@ N_FOLDS = 10
 
 # ====================== Refit pipeline inside each bootstrap ======================
 
+
 def lasso_select(X, y):
     """Replicate step 12: 10-fold stratified CV, in-fold scaling, AUPRC, 1SE rule."""
     folds = list(
-        StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_STATE).split(X, y)
+        StratifiedKFold(
+            n_splits=N_FOLDS, shuffle=True, random_state=RANDOM_STATE
+        ).split(X, y)
     )
     scores = np.zeros((N_FOLDS, len(LAMBDA_SEQ)))
     for j, lam in enumerate(LAMBDA_SEQ):
         for k, (tr, va) in enumerate(folds):
             scaler = StandardScaler().fit(X[tr])
             model = LogisticRegression(
-                penalty="l1", solver="liblinear", C=1.0 / lam,
-                random_state=RANDOM_STATE, max_iter=1000,
+                penalty="l1",
+                solver="liblinear",
+                C=1.0 / lam,
+                random_state=RANDOM_STATE,
+                max_iter=1000,
             )
             model.fit(scaler.transform(X[tr]), y[tr])
             scores[k, j] = average_precision_score(
@@ -71,14 +77,19 @@ def lasso_select(X, y):
     mean_scores = scores.mean(axis=0)
     se_scores = scores.std(axis=0) / np.sqrt(N_FOLDS)
     best_idx = int(np.argmax(mean_scores))
-    idx_1se = int(np.max(np.where(mean_scores >= mean_scores[best_idx] - se_scores[best_idx])[0]))
+    idx_1se = int(
+        np.max(np.where(mean_scores >= mean_scores[best_idx] - se_scores[best_idx])[0])
+    )
 
     X_scaled = StandardScaler().fit_transform(X)
 
     def nonzero_at(idx):
         model = LogisticRegression(
-            penalty="l1", solver="liblinear", C=1.0 / LAMBDA_SEQ[idx],
-            random_state=RANDOM_STATE, max_iter=1000,
+            penalty="l1",
+            solver="liblinear",
+            C=1.0 / LAMBDA_SEQ[idx],
+            random_state=RANDOM_STATE,
+            max_iter=1000,
         )
         model.fit(X_scaled, y)
         return np.abs(model.coef_[0]) > 1e-6
@@ -97,7 +108,9 @@ def fit_unpenalized(X, y):
 
 
 def calibration_slope(y, prob):
-    logit_p = np.log(np.clip(prob, 1e-10, 1 - 1e-10) / (1 - np.clip(prob, 1e-10, 1 - 1e-10)))
+    logit_p = np.log(
+        np.clip(prob, 1e-10, 1 - 1e-10) / (1 - np.clip(prob, 1e-10, 1 - 1e-10))
+    )
     res = sm.GLM(y, sm.add_constant(logit_p), family=sm.families.Binomial()).fit()
     return float(res.params[1])
 
@@ -126,6 +139,7 @@ def one_bootstrap(b, seed, X_all, y):
 
 # ====================== Shrunk model ======================
 
+
 def shrink_model(X, y, coef, shrinkage):
     """Multiply slopes by S, then re-estimate the intercept with the shrunk linear predictor as offset."""
     coef_s = coef * shrinkage
@@ -143,7 +157,9 @@ def predict_prob(X, intercept, coef):
 def cv_thresholds(X, y, subjects, shrinkage):
     """Median Youden/F1 thresholds from 10-fold CV, applying the same shrinkage inside each fold."""
     youden, f1 = [], []
-    for tr, va in subject_level_cross_validation(X, y, subjects, n_folds=10, random_state=RANDOM_STATE):
+    for tr, va in subject_level_cross_validation(
+        X, y, subjects, n_folds=10, random_state=RANDOM_STATE
+    ):
         model = fit_unpenalized(X[tr], y[tr])
         intercept_s, coef_s = shrink_model(X[tr], y[tr], model.coef_[0], shrinkage)
         prob = predict_prob(X[va], intercept_s, coef_s)
@@ -181,10 +197,13 @@ def main():
     apparent_auc = roc_auc_score(y_train, apparent.predict_proba(X_train)[:, 1])
 
     # ---------------- Bootstrap ----------------
-    print(f"=== Bootstrap shrinkage ({N_BOOTSTRAP} resamples, full LASSO + LR refit) ===")
+    print(
+        f"=== Bootstrap shrinkage ({N_BOOTSTRAP} resamples, full LASSO + LR refit) ==="
+    )
     seeds = np.random.SeedSequence(RANDOM_STATE).generate_state(N_BOOTSTRAP)
     results = Parallel(n_jobs=-1, verbose=5)(
-        delayed(one_bootstrap)(b, int(seed), X_all, y_all) for b, seed in enumerate(seeds)
+        delayed(one_bootstrap)(b, int(seed), X_all, y_all)
+        for b, seed in enumerate(seeds)
     )
     results = [r for r in results if r is not None]
 
@@ -196,39 +215,46 @@ def main():
     shrinkage = float(draws["slope_orig"].mean())
     optimism = float(draws["optimism_auc"].mean())
 
-    summary = pd.DataFrame([
-        ("N_bootstrap_valid", len(draws)),
-        ("Shrinkage_factor_S", shrinkage),
-        ("S_SD", draws["slope_orig"].std()),
-        ("S_P2.5", draws["slope_orig"].quantile(0.025)),
-        ("S_P97.5", draws["slope_orig"].quantile(0.975)),
-        ("Apparent_AUC_train", apparent_auc),
-        ("Optimism_AUC", optimism),
-        ("Optimism_corrected_AUC_train", apparent_auc - optimism),
-        ("Mean_features_selected", draws["n_selected"].mean()),
-        ("Fallback_best_lambda_count", int(draws["fallback_best_lambda"].sum())),
-    ], columns=["Metric", "Value"])
+    summary = pd.DataFrame(
+        [
+            ("N_bootstrap_valid", len(draws)),
+            ("Shrinkage_factor_S", shrinkage),
+            ("S_SD", draws["slope_orig"].std()),
+            ("S_P2.5", draws["slope_orig"].quantile(0.025)),
+            ("S_P97.5", draws["slope_orig"].quantile(0.975)),
+            ("Apparent_AUC_train", apparent_auc),
+            ("Optimism_AUC", optimism),
+            ("Optimism_corrected_AUC_train", apparent_auc - optimism),
+            ("Mean_features_selected", draws["n_selected"].mean()),
+            ("Fallback_best_lambda_count", int(draws["fallback_best_lambda"].sum())),
+        ],
+        columns=["Metric", "Value"],
+    )
     summary.to_csv("step_14_shrinkage_summary.csv", index=False)
     print("\n" + summary.to_string(index=False))
 
-    freq = pd.DataFrame({
-        "Feature": candidate_cols,
-        "Abbreviation": [abbr.get(c, c) for c in candidate_cols],
-        "Selection_frequency": masks.mean(axis=0),
-        "In_final_model": [c in selected_cols for c in candidate_cols],
-    }).sort_values("Selection_frequency", ascending=False)
+    freq = pd.DataFrame(
+        {
+            "Feature": candidate_cols,
+            "Abbreviation": [abbr.get(c, c) for c in candidate_cols],
+            "Selection_frequency": masks.mean(axis=0),
+            "In_final_model": [c in selected_cols for c in candidate_cols],
+        }
+    ).sort_values("Selection_frequency", ascending=False)
     freq.to_csv("step_14_bootstrap_selection_frequency.csv", index=False)
     print("\nBootstrap selection frequency:")
     print(freq.to_string(index=False))
 
     # ---------------- Shrunk final model ----------------
     intercept_s, coef_s = shrink_model(X_train, y_train, apparent.coef_[0], shrinkage)
-    coef_table = pd.DataFrame({
-        "Variable": ["Intercept"] + selected_cols,
-        "Abbreviation": ["Intercept"] + [abbr.get(c, c) for c in selected_cols],
-        "beta_unshrunk": np.r_[apparent.intercept_[0], apparent.coef_[0]],
-        "beta_shrunk": np.r_[intercept_s, coef_s],
-    })
+    coef_table = pd.DataFrame(
+        {
+            "Variable": ["Intercept"] + selected_cols,
+            "Abbreviation": ["Intercept"] + [abbr.get(c, c) for c in selected_cols],
+            "beta_unshrunk": np.r_[apparent.intercept_[0], apparent.coef_[0]],
+            "beta_shrunk": np.r_[intercept_s, coef_s],
+        }
+    )
     coef_table["OR_unshrunk"] = np.exp(coef_table["beta_unshrunk"])
     coef_table["OR_shrunk"] = np.exp(coef_table["beta_shrunk"])
     coef_table.loc[0, ["OR_unshrunk", "OR_shrunk"]] = np.nan
@@ -237,7 +263,9 @@ def main():
     print(coef_table.round(4).to_string(index=False))
 
     prob_train_s = predict_prob(X_train, intercept_s, coef_s)
-    print(f"\nTraining mean predicted = {prob_train_s.mean():.4f}, observed prevalence = {y_train.mean():.4f}")
+    print(
+        f"\nTraining mean predicted = {prob_train_s.mean():.4f}, observed prevalence = {y_train.mean():.4f}"
+    )
 
     youden_t, f1_t = cv_thresholds(X_train, y_train, subjects_train, shrinkage)
     print(f"CV thresholds (shrunk): Youden = {youden_t:.4f}, F1 = {f1_t:.4f}")
@@ -249,9 +277,15 @@ def main():
     )
 
     evaluator = LRModel(random_state=RANDOM_STATE)
-    evaluator.default, evaluator.f1_median, evaluator.youden_median = 0.5, f1_t, youden_t
+    evaluator.default, evaluator.f1_median, evaluator.youden_median = (
+        0.5,
+        f1_t,
+        youden_t,
+    )
     test_perf = {
-        f"test_{name}": calculate_all_metrics(y_test, (y_prob >= t).astype(int), y_prob, t)
+        f"test_{name}": calculate_all_metrics(
+            y_test, (y_prob >= t).astype(int), y_prob, t
+        )
         for name, t in [("default", 0.5), ("f1", f1_t), ("youden", youden_t)]
     }
     test_df = pd.DataFrame(test_perf)
@@ -260,7 +294,10 @@ def main():
     print(test_df.round(4))
 
     ci_df = evaluator.bootstrap_test_performance(
-        X_test, y_test, y_prob, n_bootstrap=2000,
+        X_test,
+        y_test,
+        y_prob,
+        n_bootstrap=2000,
         save_path="step_14_shrunk_bootstrap_ci.csv",
     )
     plot_combined_analysis(y_test, y_prob, "step_14_shrunk_combined_analysis.pdf")
@@ -275,7 +312,11 @@ def main():
         "optimism_corrected_auc_train": apparent_auc - optimism,
         "intercept": intercept_s,
         "coefficients": dict(zip(selected_cols, map(float, coef_s))),
-        "thresholds": {"default": 0.5, "youden": round(youden_t, 4), "f1": round(f1_t, 4)},
+        "thresholds": {
+            "default": 0.5,
+            "youden": round(youden_t, 4),
+            "f1": round(f1_t, 4),
+        },
         "test_performance_bootstrap": {
             row["Metric"]: {
                 "point_estimate": float(row["Point_Estimate"]),

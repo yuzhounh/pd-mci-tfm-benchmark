@@ -1,3 +1,10 @@
+"""Step 01: extract the baseline PD cohort and the initial candidate features.
+
+Reads the PPMI curated data cut, keeps the PD cohort (COHORT == 1) at the
+baseline visit, harmonises renamed source columns and writes PPMI_0 to PPMI_3
+for the following steps.
+"""
+
 import pandas as pd
 
 
@@ -28,30 +35,31 @@ def normalize_source_columns(df):
             rename_map[source_name] = canonical_name
     return df.rename(columns=rename_map)
 
-print("\n开始处理PPMI数据...")
 
-# 步骤1: 读取Excel文件并保存为CSV
-print("\n步骤1: 读取Excel文件...")
-# 读取Excel文件
+print("\nProcessing PPMI data...")
+
+# Step 1: read the Excel file and save it as CSV
+print("\nStep 1: reading the Excel file...")
+# Read the Excel file
 df_original = pd.read_excel(RAW_DATA_FILE)
-print(f"原始数据形状: {df_original.shape}")
+print(f"Raw data shape: {df_original.shape}")
 
-# 保存为CSV
+# Save as CSV
 df_original.to_csv("PPMI_0_data.csv", index=False)
-print(f"已保存 PPMI_0_data.csv, 形状: {df_original.shape}")
+print(f"Saved PPMI_0_data.csv, shape: {df_original.shape}")
 
-# 仅规范化已确认的上游字段改名；PPMI_0_data.csv 仍保留源文件原始列名。
+# Only normalise confirmed upstream renames; PPMI_0_data.csv keeps the original column names.
 df_source = normalize_source_columns(df_original)
 
-# 步骤2: 筛选COHORT列为1的行
-print("\n步骤2: 筛选COHORT列为1的行...")
-# 筛选COHORT为1的行
+# Step 2: keep rows with COHORT == 1
+print("\nStep 2: keeping rows with COHORT == 1...")
+# Keep COHORT == 1
 df_pd = df_source[df_source["COHORT"] == 1].copy()
-print(f"筛选后数据形状: {df_pd.shape}")
+print(f"Shape after filtering: {df_pd.shape}")
 
-# 输出被试的数目（PATNO列不重复元素的数目）
+# Number of participants (unique PATNO)
 num_subjects = df_pd["PATNO"].nunique()
-print(f"被试（PATNO唯一数）数量: {num_subjects}")
+print(f"Participants (unique PATNO): {num_subjects}")
 if (len(df_pd), num_subjects) != EXPECTED_PD_COHORT:
     raise RuntimeError(
         "Locked initial PD cohort changed: "
@@ -59,7 +67,7 @@ if (len(df_pd), num_subjects) != EXPECTED_PD_COHORT:
         f"got {len(df_pd)} visits/{num_subjects} subjects"
     )
 
-# 单访视分析仅保留基线（BL）。PPMI 当前 cut 中每位 PD 受试者恰有一条 BL 记录。
+# Keep only the baseline (BL) visit; each PD participant has exactly one BL record in this cut.
 df_pd = df_pd[df_pd["EVENT_ID"] == "BL"].copy()
 baseline_subjects = df_pd["PATNO"].nunique()
 if (len(df_pd), baseline_subjects) != EXPECTED_BASELINE_COHORT:
@@ -72,49 +80,51 @@ if (len(df_pd), baseline_subjects) != EXPECTED_BASELINE_COHORT:
 if df_pd["PATNO"].duplicated().any():
     raise RuntimeError("Baseline cohort contains duplicate PATNO values")
 
-# 保存单访视 PD 队列
+# Save the baseline PD cohort
 df_pd.to_csv("PPMI_1_PD.csv", index=False)
-print(f"已保存 PPMI_1_PD.csv（BL 单访视）, 形状: {df_pd.shape}")
+print(f"Saved PPMI_1_PD.csv (BL visits), shape: {df_pd.shape}")
 
-# 步骤3: 读取风险因子配置文件
-print("\n步骤3: 处理风险因子特征...")
-# 读取风险因子配置
+# Step 3: read the candidate-feature configuration
+print("\nStep 3: selecting candidate features...")
+# Read the configuration
 df_risk_config = pd.read_csv("PPMI_initial_feature_sets.csv")
-print(f"风险因子配置文件形状: {df_risk_config.shape}")
-print("配置文件前几行:")
+print(f"Configuration shape: {df_risk_config.shape}")
+print("First rows of the configuration:")
 print(df_risk_config.head())
 
-# 获取flag为1的特征列表
+# Features with flag == 1
 selected_features = df_risk_config[df_risk_config["flag"] == 1]["feature"].tolist()
-print(f"选中的特征数量: {len(selected_features)}")
-print(f"选中的特征: {selected_features[:10]}...")  # 显示前10个特征
+print(f"Selected features: {len(selected_features)}")
+print(f"Selected features: {selected_features[:10]}...")  # first 10
 
-# 检查这些特征在数据中是否存在
+# Check that the features exist in the data
 available_features = [feat for feat in selected_features if feat in df_pd.columns]
 missing_features = [feat for feat in selected_features if feat not in df_pd.columns]
 
-print(f"数据中可用的特征数量: {len(available_features)}")
+print(f"Features available in the data: {len(available_features)}")
 if missing_features:
     raise RuntimeError(
         "Required features are missing after source-column normalization: "
         f"{missing_features}"
     )
 
-# 提取选中的特征
+# Extract the selected features
 df_risk_selected = df_pd[available_features].copy()
-print(f"提取风险因子后数据形状: {df_risk_selected.shape}")
+print(f"Shape after feature selection: {df_risk_selected.shape}")
 
-# 保存结果
+# Save the results
 df_risk_selected.to_csv("PPMI_2_features.csv", index=False)
-print(f"已保存 PPMI_2_features.csv, 形状: {df_risk_selected.shape}")
+print(f"Saved PPMI_2_features.csv, shape: {df_risk_selected.shape}")
 
-# 为保持后续步骤的既有输入文件名，另存一份不经跨表回填的相同数据
+# Save the same data under the input name used by later steps (no cross-table backfilling)
 df_risk_selected.to_csv("PPMI_3_source.csv", index=False)
-print(f"已保存 PPMI_3_source.csv（curated 数据副本）, 形状: {df_risk_selected.shape}")
+print(
+    f"Saved PPMI_3_source.csv (copy of the curated data), shape: {df_risk_selected.shape}"
+)
 
-print("\n数据处理完成!")
+print("\nData processing finished.")
 print("=" * 50)
-print("总结:")
+print("Summary:")
 print(f"1. PPMI_0_data.csv: {df_original.shape}")
 print(f"2. PPMI_1_PD.csv: {df_pd.shape}")
 print(f"3. PPMI_2_features.csv: {df_risk_selected.shape}")

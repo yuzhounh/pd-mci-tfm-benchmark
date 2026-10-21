@@ -16,3 +16,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Analysis outputs written by the pipeline (results are not distributed)
+code/step_*.csv
+code/step_*.json
+code/step_*.pdf
+code/step_*.tex
+code/step_*.npz
+code/*.log

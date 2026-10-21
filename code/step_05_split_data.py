@@ -15,7 +15,9 @@ EXPECTED_SPLIT = (1165, 1165, 500, 500)
 def validate_single_visit(data: pd.DataFrame) -> None:
     if not data["EVENT_ID"].eq("BL").all():
         unexpected = sorted(data.loc[data["EVENT_ID"].ne("BL"), "EVENT_ID"].unique())
-        raise RuntimeError(f"Expected baseline-only data; found EVENT_ID values: {unexpected}")
+        raise RuntimeError(
+            f"Expected baseline-only data; found EVENT_ID values: {unexpected}"
+        )
     duplicates = data.loc[data["PATNO"].duplicated(keep=False), "PATNO"].unique()
     if len(duplicates):
         raise RuntimeError(
@@ -46,7 +48,9 @@ def main() -> None:
 
     overlap = set(train_data["PATNO"]) & set(test_data["PATNO"])
     if overlap:
-        raise RuntimeError(f"Train/test participant overlap detected: {sorted(overlap)[:10]}")
+        raise RuntimeError(
+            f"Train/test participant overlap detected: {sorted(overlap)[:10]}"
+        )
 
     observed = (
         len(train_data),
@@ -55,7 +59,9 @@ def main() -> None:
         test_data["PATNO"].nunique(),
     )
     if observed != EXPECTED_SPLIT:
-        raise RuntimeError(f"Locked split changed: expected {EXPECTED_SPLIT}, got {observed}")
+        raise RuntimeError(
+            f"Locked split changed: expected {EXPECTED_SPLIT}, got {observed}"
+        )
 
     describe("Training set", train_data)
     describe("Held-out test set", test_data)

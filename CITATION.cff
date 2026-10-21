@@ -3,24 +3,20 @@ message: "If you use this code, please cite it as below."
 title: "pd-mci-tfm-benchmark: analysis code for an interpretable diagnostic prediction model for concurrent mild cognitive impairment in Parkinson's disease"
 type: software
 authors:
-  - family-names: Wang
-    given-names: Jing
-  - family-names: Chen
-    given-names: Yanfang
   - family-names: Xie
     given-names: Xiao
-  - family-names: Wang
-    given-names: Pengwei
-  - family-names: Hu
-    given-names: Hang
+  - family-names: Chen
+    given-names: Yanfang
+  - family-names: Xia
+    given-names: Kunpeng
   - family-names: Han
     given-names: Hongfang
-  - family-names: Wang
-    given-names: Lihan
   - family-names: Zhang
     given-names: Li
-version: "1.6"
-date-released: "2026-10-01"
+  - family-names: Wang
+    given-names: Jing
+version: "1.11"
+date-released: "2026-10-21"
 license: MIT
 repository-code: "https://github.com/yuzhounh/pd-mci-tfm-benchmark"
 keywords:

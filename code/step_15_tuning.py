@@ -65,6 +65,7 @@ MODEL_CLASSES = {
 # Pre-specified search spaces
 # =====================================================================
 
+
 def search_space(model_key: str, trial: optuna.Trial) -> dict:
     """
     Hyperparameters sampled for one trial. GBDT tree counts are chosen by early stopping
@@ -93,7 +94,9 @@ def search_space(model_key: str, trial: optuna.Trial) -> dict:
     if model_key == "RF":
         return {
             "n_estimators": trial.suggest_int("n_estimators", 100, 1000, step=50),
-            "max_depth": trial.suggest_categorical("max_depth", [None, 3, 5, 8, 12, 16]),
+            "max_depth": trial.suggest_categorical(
+                "max_depth", [None, 3, 5, 8, 12, 16]
+            ),
             "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
             "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 100, log=True),
             "max_features": trial.suggest_float("max_features", 0.03, 1.0),
@@ -102,7 +105,9 @@ def search_space(model_key: str, trial: optuna.Trial) -> dict:
         return {
             "learning_rate": trial.suggest_float("learning_rate", 0.001, 0.3, log=True),
             "max_depth": trial.suggest_int("max_depth", 1, 8),
-            "min_child_weight": trial.suggest_float("min_child_weight", 1.0, 20.0, log=True),
+            "min_child_weight": trial.suggest_float(
+                "min_child_weight", 1.0, 20.0, log=True
+            ),
             "subsample": trial.suggest_float("subsample", 0.3, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
@@ -113,7 +118,9 @@ def search_space(model_key: str, trial: optuna.Trial) -> dict:
         return {
             "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
             "num_leaves": trial.suggest_int("num_leaves", 2, 64, log=True),
-            "min_child_samples": trial.suggest_int("min_child_samples", 1, 100, log=True),
+            "min_child_samples": trial.suggest_int(
+                "min_child_samples", 1, 100, log=True
+            ),
             "subsample": trial.suggest_float("subsample", 0.5, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
@@ -124,20 +131,28 @@ def search_space(model_key: str, trial: optuna.Trial) -> dict:
             "learning_rate": trial.suggest_float("learning_rate", 0.005, 0.3, log=True),
             "depth": trial.suggest_int("depth", 1, 8),
             "l2_leaf_reg": trial.suggest_float("l2_leaf_reg", 1.0, 30.0, log=True),
-            "random_strength": trial.suggest_float("random_strength", 1e-3, 10.0, log=True),
+            "random_strength": trial.suggest_float(
+                "random_strength", 1e-3, 10.0, log=True
+            ),
             "subsample": trial.suggest_float("subsample", 0.5, 1.0),
             "rsm": trial.suggest_float("rsm", 0.5, 1.0),
         }
     if model_key == "RealMLP":
         return {
-            "num_emb_type": trial.suggest_categorical("num_emb_type", ["none", "pbld", "pl", "plr"]),
-            "add_front_scale": trial.suggest_categorical("add_front_scale", [True, False]),
+            "num_emb_type": trial.suggest_categorical(
+                "num_emb_type", ["none", "pbld", "pl", "plr"]
+            ),
+            "add_front_scale": trial.suggest_categorical(
+                "add_front_scale", [True, False]
+            ),
             "lr": trial.suggest_float("lr", 2e-2, 3e-1, log=True),
             "p_drop": trial.suggest_categorical("p_drop", [0.0, 0.15, 0.3]),
             "wd": trial.suggest_categorical("wd", [0.0, 2e-2]),
             "plr_sigma": trial.suggest_float("plr_sigma", 0.05, 0.5, log=True),
             "act": trial.suggest_categorical("act", ["relu", "selu", "mish"]),
-            "hidden_sizes": trial.suggest_categorical("hidden_sizes", ["256x3", "64x5", "512x1"]),
+            "hidden_sizes": trial.suggest_categorical(
+                "hidden_sizes", ["256x3", "64x5", "512x1"]
+            ),
             "ls_eps": trial.suggest_categorical("ls_eps", [0.0, 0.1]),
         }
     if model_key == "TabM":
@@ -155,8 +170,13 @@ def search_space(model_key: str, trial: optuna.Trial) -> dict:
 # Configuration helpers shared with step_15_benchmark.py
 # =====================================================================
 
-def build_model_config(config: dict, model_key: str, tuned_params: dict | None = None,
-                       overrides: dict | None = None) -> dict:
+
+def build_model_config(
+    config: dict,
+    model_key: str,
+    tuned_params: dict | None = None,
+    overrides: dict | None = None,
+) -> dict:
     """Model configuration with the protocol device, tuned parameters and fixed overrides."""
     cfg = json.loads(json.dumps(config["models"][model_key]))
     cfg.setdefault("device", config["protocol"].get("device", "cpu"))
@@ -181,9 +201,11 @@ def tuning_fingerprint(config: dict, track: str, model_key: str) -> str:
         "cv": [config["protocol"]["cv_folds"], config["protocol"]["cv_seed"]],
         "device": config["protocol"].get("device", "cpu"),
         "train_sha256": file_sha256(config["data_files"][f"{track}_track"]["train"]),
-        "model_code": inspect.getsource(getattr(benchmark_models, MODEL_CLASSES[model_key])),
+        "model_code": inspect.getsource(
+            getattr(benchmark_models, MODEL_CLASSES[model_key])
+        ),
         "cv_code": inspect.getsource(benchmark_evaluation.run_cross_validation)
-                   + inspect.getsource(benchmark_evaluation.fit_benchmark_model),
+        + inspect.getsource(benchmark_evaluation.fit_benchmark_model),
     }
     if model_key == "TabM":
         parts["model_code"] += inspect.getsource(benchmark_models._SingleTabMNetwork)
@@ -196,7 +218,9 @@ def load_training_data(config: dict, track: str):
     data_cfg = config["data_files"]
     train = pd.read_csv(data_cfg[f"{track}_track"]["train"])
     if train[data_cfg["subject_column"]].duplicated().any():
-        raise RuntimeError(f"Participant invariant violated in the {track} training set")
+        raise RuntimeError(
+            f"Participant invariant violated in the {track} training set"
+        )
     features = [c for c in train.columns if c not in data_cfg["forbidden_columns"]]
     X = train[features].values.astype(float)
     y = train[data_cfg["target_column"]].values.astype(int)
@@ -207,6 +231,7 @@ def load_training_data(config: dict, track: str):
 # =====================================================================
 # Tuning
 # =====================================================================
+
 
 def format_seconds(seconds: float) -> str:
     seconds = int(round(seconds))
@@ -228,8 +253,10 @@ def output_lock(out_dir: str, timeout_s: float = 600.0):
             break
         except FileExistsError:
             if time.time() - started > timeout_s:
-                raise TimeoutError(f"{lock_path} held for over {timeout_s:.0f}s; remove it if "
-                                   "no other tuning process is running")
+                raise TimeoutError(
+                    f"{lock_path} held for over {timeout_s:.0f}s; remove it if "
+                    "no other tuning process is running"
+                )
             time.sleep(0.2)
     try:
         yield
@@ -248,17 +275,19 @@ def save_json_atomic(obj: dict, path: str) -> None:
 def export_trials(study: optuna.Study, model_key: str, path: str) -> None:
     rows = []
     for t in study.trials:
-        rows.append({
-            "Model": model_key,
-            "Trial": t.number,
-            "State": t.state.name,
-            "CV_AUPRC": t.value,
-            "CV_AUPRC_std": t.user_attrs.get("cv_auprc_std"),
-            "CV_AUROC": t.user_attrs.get("cv_auroc"),
-            "CV_Brier": t.user_attrs.get("cv_brier"),
-            "Duration_s": t.duration.total_seconds() if t.duration else None,
-            "Params": json.dumps(t.params, sort_keys=True),
-        })
+        rows.append(
+            {
+                "Model": model_key,
+                "Trial": t.number,
+                "State": t.state.name,
+                "CV_AUPRC": t.value,
+                "CV_AUPRC_std": t.user_attrs.get("cv_auprc_std"),
+                "CV_AUROC": t.user_attrs.get("cv_auroc"),
+                "CV_Brier": t.user_attrs.get("cv_brier"),
+                "Duration_s": t.duration.total_seconds() if t.duration else None,
+                "Params": json.dumps(t.params, sort_keys=True),
+            }
+        )
     new = pd.DataFrame(rows)
     if os.path.isfile(path):
         old = pd.read_csv(path)
@@ -266,7 +295,9 @@ def export_trials(study: optuna.Study, model_key: str, path: str) -> None:
     new.to_csv(path, index=False)
 
 
-def tune_model(config: dict, track: str, model_key: str, data, n_trials: int, out_dir: str) -> None:
+def tune_model(
+    config: dict, track: str, model_key: str, data, n_trials: int, out_dir: str
+) -> None:
     X, y, subjects, _ = data
     tuning = config["protocol"]["tuning"]
     fingerprint = tuning_fingerprint(config, track, model_key)
@@ -282,15 +313,24 @@ def tune_model(config: dict, track: str, model_key: str, data, n_trials: int, ou
     )
     done = len(study.get_trials(states=[optuna.trial.TrialState.COMPLETE]))
     remaining = max(0, n_trials - done)
-    print(f"\n[{track}/{model_key}] fingerprint {fingerprint[:16]}: {done} trials done, "
-          f"{remaining} to run", flush=True)
+    print(
+        f"\n[{track}/{model_key}] fingerprint {fingerprint[:16]}: {done} trials done, "
+        f"{remaining} to run",
+        flush=True,
+    )
 
     def objective(trial: optuna.Trial) -> float:
         params = search_space(model_key, trial)
-        cfg = build_model_config(config, model_key, tuned_params=params, overrides=overrides)
+        cfg = build_model_config(
+            config, model_key, tuned_params=params, overrides=overrides
+        )
         _, cv_mean, cv_std = run_cross_validation(
-            model_factory=lambda: create_benchmark_model(model_key, cfg, random_state=42),
-            X=X, y=y, subjects=subjects,
+            model_factory=lambda: create_benchmark_model(
+                model_key, cfg, random_state=42
+            ),
+            X=X,
+            y=y,
+            subjects=subjects,
             n_folds=config["protocol"]["cv_folds"],
             random_state=config["protocol"]["cv_seed"],
         )
@@ -306,9 +346,12 @@ def tune_model(config: dict, track: str, model_key: str, data, n_trials: int, ou
         n_new = n_done - done
         elapsed = time.time() - started
         eta = elapsed / max(n_new, 1) * max(n_trials - n_done, 0)
-        print(f"[{track}/{model_key}] trial {n_done}/{n_trials} AUPRC {trial.value:.4f} | "
-              f"best {study.best_value:.4f} (trial {study.best_trial.number}) | "
-              f"elapsed {format_seconds(elapsed)}, ETA {format_seconds(eta)}", flush=True)
+        print(
+            f"[{track}/{model_key}] trial {n_done}/{n_trials} AUPRC {trial.value:.4f} | "
+            f"best {study.best_value:.4f} (trial {study.best_trial.number}) | "
+            f"elapsed {format_seconds(elapsed)}, ETA {format_seconds(eta)}",
+            flush=True,
+        )
 
     if remaining:
         # A failing trial raises and stops the run; completed trials stay in the study
@@ -318,7 +361,11 @@ def tune_model(config: dict, track: str, model_key: str, data, n_trials: int, ou
     best = study.best_trial
     best_path = os.path.join(out_dir, BEST_PARAMS_FILE)
     with output_lock(out_dir):
-        export_trials(study, model_key, os.path.join(out_dir, f"step_15_tuning_trials_{track}.csv"))
+        export_trials(
+            study,
+            model_key,
+            os.path.join(out_dir, f"step_15_tuning_trials_{track}.csv"),
+        )
         results = {}
         if os.path.isfile(best_path):
             with open(best_path, encoding="utf-8") as f:
@@ -335,8 +382,11 @@ def tune_model(config: dict, track: str, model_key: str, data, n_trials: int, ou
             "finished": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
         save_json_atomic(results, best_path)
-    print(f"[{track}/{model_key}] best CV AUPRC {best.value:.4f} (trial {best.number}): "
-          f"{json.dumps(best.params)}", flush=True)
+    print(
+        f"[{track}/{model_key}] best CV AUPRC {best.value:.4f} (trial {best.number}): "
+        f"{json.dumps(best.params)}",
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -345,20 +395,33 @@ def main() -> None:
         config = json.load(f)
     tuning = config["protocol"]["tuning"]
 
-    parser = argparse.ArgumentParser(description="Tune the benchmark models trained from scratch.")
+    parser = argparse.ArgumentParser(
+        description="Tune the benchmark models trained from scratch."
+    )
     parser.add_argument("--track", choices=["7feat", "full", "both"], default="both")
     parser.add_argument("--models", default=",".join(tuning["models"]))
-    parser.add_argument("--n-trials", type=int, default=tuning["n_trials"],
-                        help="Override only for smoke tests; the benchmark requires the configured count")
-    parser.add_argument("--out-dir", default=".", help="Directory for the study database and outputs")
+    parser.add_argument(
+        "--n-trials",
+        type=int,
+        default=tuning["n_trials"],
+        help="Override only for smoke tests; the benchmark requires the configured count",
+    )
+    parser.add_argument(
+        "--out-dir", default=".", help="Directory for the study database and outputs"
+    )
     args = parser.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     unknown = [m for m in models if m not in TUNED_MODELS]
     if unknown:
         raise ValueError(f"Not tunable: {unknown}")
-    if config["protocol"].get("device", "cpu").startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("benchmark_config.json requests CUDA but torch.cuda is not available")
+    if (
+        config["protocol"].get("device", "cpu").startswith("cuda")
+        and not torch.cuda.is_available()
+    ):
+        raise RuntimeError(
+            "benchmark_config.json requests CUDA but torch.cuda is not available"
+        )
     os.makedirs(args.out_dir, exist_ok=True)
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -366,8 +429,11 @@ def main() -> None:
     started = time.time()
     for track in tracks:
         data = load_training_data(config, track)
-        print(f"\n=== Track {track}: {len(data[1])} training participants, "
-              f"{int(data[1].sum())} PD-MCI, {len(data[3])} features", flush=True)
+        print(
+            f"\n=== Track {track}: {len(data[1])} training participants, "
+            f"{int(data[1].sum())} PD-MCI, {len(data[3])} features",
+            flush=True,
+        )
         for model_key in models:
             tune_model(config, track, model_key, data, args.n_trials, args.out_dir)
     print(f"\nTuning finished in {format_seconds(time.time() - started)}.", flush=True)

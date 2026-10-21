@@ -45,7 +45,12 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 
-from benchmark_models import TUNED_MODELS, create_benchmark_model, file_sha256, tabpfn_checkpoint_path
+from benchmark_models import (
+    TUNED_MODELS,
+    create_benchmark_model,
+    file_sha256,
+    tabpfn_checkpoint_path,
+)
 from step_15_tuning import BEST_PARAMS_FILE, build_model_config, tuning_fingerprint
 from benchmark_evaluation import (
     compute_binary_metrics,
@@ -58,10 +63,34 @@ from benchmark_evaluation import (
     plot_benchmark_dca,
 )
 
-ALL_MODELS = ["LR", "SVM", "RF", "XGBoost", "LightGBM", "CatBoost", "RealMLP", "TabM",
-              "TabICLv2", "TabPFN", "TabFM"]
-PACKAGES = ["numpy", "pandas", "scikit-learn", "torch", "catboost", "xgboost", "lightgbm",
-            "optuna", "pytabkit", "tabm", "tabicl", "tabpfn", "tabfm"]
+ALL_MODELS = [
+    "LR",
+    "SVM",
+    "RF",
+    "XGBoost",
+    "LightGBM",
+    "CatBoost",
+    "RealMLP",
+    "TabM",
+    "TabICLv2",
+    "TabPFN",
+    "TabFM",
+]
+PACKAGES = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "torch",
+    "catboost",
+    "xgboost",
+    "lightgbm",
+    "optuna",
+    "pytabkit",
+    "tabm",
+    "tabicl",
+    "tabpfn",
+    "tabfm",
+]
 TRACK_ORDER = ["7feat", "full"]
 TRACK_TITLES = {
     "7feat": "Primary Analysis (7 LASSO-Selected Features)",
@@ -84,7 +113,9 @@ def prepare_benchmark_data(
     forbidden_cols: list[str],
     target_col: str = "MCI",
     subject_col: str = "PATNO",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
+) -> Tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]
+]:
     """
     Load and sanitize train and test sets, strictly excluding forbidden/leakage columns.
     """
@@ -93,9 +124,13 @@ def prepare_benchmark_data(
 
     # Invariant assertions
     if len(np.unique(train_df[subject_col])) != len(train_df):
-        raise RuntimeError(f"Participant invariant violated in {train_file}: duplicate {subject_col}")
+        raise RuntimeError(
+            f"Participant invariant violated in {train_file}: duplicate {subject_col}"
+        )
     if len(np.unique(test_df[subject_col])) != len(test_df):
-        raise RuntimeError(f"Participant invariant violated in {test_file}: duplicate {subject_col}")
+        raise RuntimeError(
+            f"Participant invariant violated in {test_file}: duplicate {subject_col}"
+        )
 
     feature_cols = [c for c in train_df.columns if c not in forbidden_cols]
 
@@ -128,27 +163,35 @@ def quick_test_config(model_key: str, model_cfg: dict) -> dict:
     return model_cfg
 
 
-def load_tuned_params(config: dict, track: str, model_key: str, path: str,
-                      allow_incomplete: bool) -> dict:
+def load_tuned_params(
+    config: dict, track: str, model_key: str, path: str, allow_incomplete: bool
+) -> dict:
     """Best tuned parameters, refused if missing, incomplete or from a stale configuration."""
     if not os.path.isfile(path):
         raise FileNotFoundError(f"{path} not found; run step_15_tuning.py first")
     with open(path, encoding="utf-8") as f:
         entry = json.load(f).get(track, {}).get(model_key)
     if entry is None:
-        raise RuntimeError(f"No tuning result for {model_key} on the {track} track in {path}")
+        raise RuntimeError(
+            f"No tuning result for {model_key} on the {track} track in {path}"
+        )
     if entry["fingerprint"] != tuning_fingerprint(config, track, model_key):
-        raise RuntimeError(f"Tuning result for {model_key} ({track}) is stale: its fingerprint "
-                           "does not match the current configuration, data or code")
+        raise RuntimeError(
+            f"Tuning result for {model_key} ({track}) is stale: its fingerprint "
+            "does not match the current configuration, data or code"
+        )
     n_required = config["protocol"]["tuning"]["n_trials"]
     if entry["n_trials_completed"] < n_required and not allow_incomplete:
-        raise RuntimeError(f"Tuning of {model_key} ({track}) has {entry['n_trials_completed']} "
-                           f"of {n_required} trials")
+        raise RuntimeError(
+            f"Tuning of {model_key} ({track}) has {entry['n_trials_completed']} "
+            f"of {n_required} trials"
+        )
     return entry
 
 
-def checkpoint_fingerprint(config: dict, track: str, model_key: str, model_cfg: dict,
-                           quick_test: bool) -> str:
+def checkpoint_fingerprint(
+    config: dict, track: str, model_key: str, model_cfg: dict, quick_test: bool
+) -> str:
     """Hash of everything that determines one model's CV and test predictions."""
     data_cfg = config["data_files"][f"{track}_track"]
     parts = {
@@ -156,16 +199,22 @@ def checkpoint_fingerprint(config: dict, track: str, model_key: str, model_cfg: 
         "model_cfg": model_cfg,
         "track": track,
         "quick_test": quick_test,
-        "protocol": {k: config["protocol"][k] for k in ["cv_folds", "cv_seed", "device"]},
+        "protocol": {
+            k: config["protocol"][k] for k in ["cv_folds", "cv_seed", "device"]
+        },
         "train_sha256": file_sha256(data_cfg["train"]),
         "test_sha256": file_sha256(data_cfg["test"]),
-        "code_sha256": [file_sha256(f) for f in ["benchmark_models.py", "benchmark_evaluation.py"]],
+        "code_sha256": [
+            file_sha256(f) for f in ["benchmark_models.py", "benchmark_evaluation.py"]
+        ],
     }
     blob = json.dumps(parts, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
-def collect_run_info(config: dict, selected_models: list[str], quick_test: bool) -> dict:
+def collect_run_info(
+    config: dict, selected_models: list[str], quick_test: bool
+) -> dict:
     """Software, hardware and checkpoint provenance for the run."""
     versions = {}
     for pkg in PACKAGES:
@@ -207,9 +256,12 @@ def report_progress(progress: dict, label: str) -> None:
     progress["done"] += 1
     elapsed = time.time() - progress["started"]
     eta = elapsed / progress["done"] * (progress["total"] - progress["done"])
-    print(f"[progress] {progress['done']}/{progress['total']} "
-          f"({100 * progress['done'] / progress['total']:.0f}%) {label} done | "
-          f"elapsed {format_seconds(elapsed)}, ETA {format_seconds(eta)}", flush=True)
+    print(
+        f"[progress] {progress['done']}/{progress['total']} "
+        f"({100 * progress['done'] / progress['total']:.0f}%) {label} done | "
+        f"elapsed {format_seconds(elapsed)}, ETA {format_seconds(eta)}",
+        flush=True,
+    )
 
 
 def run_track_benchmark(
@@ -243,15 +295,23 @@ def run_track_benchmark(
     eval_label = "locked test set"
     if quick_test:
         # Smoke test: never read predictions or metrics from the locked test set
-        X_train, X_test, y_train, y_test, subjects_train, subjects_test = train_test_split(
-            X_train, y_train, subjects_train,
-            test_size=0.3, stratify=y_train, random_state=config["protocol"]["cv_seed"],
+        X_train, X_test, y_train, y_test, subjects_train, subjects_test = (
+            train_test_split(
+                X_train,
+                y_train,
+                subjects_train,
+                test_size=0.3,
+                stratify=y_train,
+                random_state=config["protocol"]["cv_seed"],
+            )
         )
         suffix = f"{track_name}_quicktest"
         eval_label = "quick-test holdout (30% of training set)"
 
-    print(f"Dataset: Train N={len(X_train)} (PD-MCI={np.sum(y_train)}, {np.mean(y_train):.1%}) | "
-          f"Evaluation N={len(X_test)} [{eval_label}] (PD-MCI={np.sum(y_test)}, {np.mean(y_test):.1%})")
+    print(
+        f"Dataset: Train N={len(X_train)} (PD-MCI={np.sum(y_train)}, {np.mean(y_train):.1%}) | "
+        f"Evaluation N={len(X_test)} [{eval_label}] (PD-MCI={np.sum(y_test)}, {np.mean(y_test):.1%})"
+    )
     print(f"Features ({len(feature_cols)}): {feature_cols}")
 
     n_folds = 2 if quick_test else config["protocol"]["cv_folds"]
@@ -270,21 +330,30 @@ def run_track_benchmark(
     for model_key in selected_models:
         tuned = None
         if model_key in TUNED_MODELS:
-            entry = load_tuned_params(config, track_name, model_key, tuned_params_path,
-                                      allow_incomplete_tuning)
+            entry = load_tuned_params(
+                config,
+                track_name,
+                model_key,
+                tuned_params_path,
+                allow_incomplete_tuning,
+            )
             tuned = entry["params"]
             tuning_info[model_key] = entry
         model_cfg = build_model_config(config, model_key, tuned_params=tuned)
         if quick_test:
             model_cfg = quick_test_config(model_key, model_cfg)
 
-        fingerprint = checkpoint_fingerprint(config, track_name, model_key, model_cfg, quick_test)
+        fingerprint = checkpoint_fingerprint(
+            config, track_name, model_key, model_cfg, quick_test
+        )
         ckpt_path = os.path.join(ckpt_dir, f"{model_key}.joblib")
         if os.path.isfile(ckpt_path):
             ckpt = joblib.load(ckpt_path)
             if ckpt["fingerprint"] == fingerprint:
-                print(f"\n[{model_key}] Loaded from checkpoint {ckpt_path} "
-                      f"(test AUPRC {ckpt['test_row']['AUPRC']:.4f})")
+                print(
+                    f"\n[{model_key}] Loaded from checkpoint {ckpt_path} "
+                    f"(test AUPRC {ckpt['test_row']['AUPRC']:.4f})"
+                )
                 oof_predictions[f"prob_{model_key}"] = ckpt["oof_probs"]
                 test_predictions[f"prob_{model_key}"] = ckpt["test_probs"]
                 optimal_thresholds[model_key] = ckpt["cv_row"]["Optimal_Threshold"]
@@ -295,8 +364,12 @@ def run_track_benchmark(
                 continue
             print(f"\n[{model_key}] Checkpoint {ckpt_path} is stale; rerunning")
 
-        print(f"\n[{model_key}] Starting {n_folds}-fold CV evaluation on training set...")
-        model_factory = lambda: create_benchmark_model(model_key, model_cfg, random_state=42)
+        print(
+            f"\n[{model_key}] Starting {n_folds}-fold CV evaluation on training set..."
+        )
+        model_factory = lambda: create_benchmark_model(
+            model_key, model_cfg, random_state=42
+        )
         started = time.time()
 
         # 1. Cross-validation on training set (Leakage-free in-fold scaling)
@@ -314,14 +387,23 @@ def run_track_benchmark(
         optimal_thresholds[model_key] = opt_thresh
 
         cv_row = {"Model": model_key, "Optimal_Threshold": opt_thresh}
-        for m_name in ["AUROC", "AUPRC", "Brier", "LogLoss", "Calib_Slope", "Calib_Intercept"]:
+        for m_name in [
+            "AUROC",
+            "AUPRC",
+            "Brier",
+            "LogLoss",
+            "Calib_Slope",
+            "Calib_Intercept",
+        ]:
             cv_row[f"{m_name}_mean"] = cv_mean.get(m_name, float("nan"))
             cv_row[f"{m_name}_std"] = cv_std.get(m_name, float("nan"))
         cv_results.append(cv_row)
 
-        print(f"[{model_key}] CV AUROC: {cv_mean['AUROC']:.4f} ± {cv_std['AUROC']:.4f} | "
-              f"AUPRC: {cv_mean['AUPRC']:.4f} ± {cv_std['AUPRC']:.4f} | "
-              f"Optimal Cutoff (Youden): {opt_thresh:.4f}")
+        print(
+            f"[{model_key}] CV AUROC: {cv_mean['AUROC']:.4f} ± {cv_std['AUROC']:.4f} | "
+            f"AUPRC: {cv_mean['AUPRC']:.4f} ± {cv_std['AUPRC']:.4f} | "
+            f"Optimal Cutoff (Youden): {opt_thresh:.4f}"
+        )
 
         # 2. Final fit on training set and evaluation on the evaluation set
         print(f"[{model_key}] Evaluating on {eval_label}...")
@@ -341,19 +423,25 @@ def run_track_benchmark(
         test_row["Runtime_s"] = time.time() - started
         test_results.append(test_row)
 
-        joblib.dump({
-            "fingerprint": fingerprint,
-            "oof_probs": oof_probs,
-            "test_probs": test_probs,
-            "cv_row": cv_row,
-            "test_row": test_row,
-        }, ckpt_path)
+        joblib.dump(
+            {
+                "fingerprint": fingerprint,
+                "oof_probs": oof_probs,
+                "test_probs": test_probs,
+                "cv_row": cv_row,
+                "test_row": test_row,
+            },
+            ckpt_path,
+        )
 
-        print(f"[{model_key}] Test AUPRC: {test_metrics['AUPRC']:.4f} | "
-              f"AUROC: {test_metrics['AUROC']:.4f} | "
-              f"Brier: {test_metrics['Brier']:.4f} | "
-              f"Calib Slope: {test_metrics['Calib_Slope']:.4f} | "
-              f"{test_row['Runtime_s']:.0f}s", flush=True)
+        print(
+            f"[{model_key}] Test AUPRC: {test_metrics['AUPRC']:.4f} | "
+            f"AUROC: {test_metrics['AUROC']:.4f} | "
+            f"Brier: {test_metrics['Brier']:.4f} | "
+            f"Calib Slope: {test_metrics['Calib_Slope']:.4f} | "
+            f"{test_row['Runtime_s']:.0f}s",
+            flush=True,
+        )
         if progress is not None:
             report_progress(progress, f"{track_name}/{model_key}")
 
@@ -382,7 +470,9 @@ def run_track_benchmark(
     # 3. Paired Participant-Level Bootstrap against LR
     boot_diff_rows = []
     if "prob_LR" in test_df.columns:
-        print(f"\nRunning {n_bootstrap} paired bootstrap resamples relative to LR baseline...")
+        print(
+            f"\nRunning {n_bootstrap} paired bootstrap resamples relative to LR baseline..."
+        )
         base_probs = test_df["prob_LR"].values
 
         for m_key in test_summary_df["Model"].tolist():
@@ -410,6 +500,13 @@ def run_track_benchmark(
                 "Delta_Brier_95CI": f"{diff_res['Delta_Brier']['ci_lower']:.4f}–{diff_res['Delta_Brier']['ci_upper']:.4f}",
                 "Delta_Brier_pval": diff_res["Delta_Brier"]["p_value"],
             }
+            for metric in ("AUPRC", "AUROC", "Brier"):
+                row[f"Delta_{metric}_CI_lower"] = diff_res[f"Delta_{metric}"][
+                    "ci_lower"
+                ]
+                row[f"Delta_{metric}_CI_upper"] = diff_res[f"Delta_{metric}"][
+                    "ci_upper"
+                ]
             boot_diff_rows.append(row)
 
         boot_diff_df = pd.DataFrame(boot_diff_rows)
@@ -417,7 +514,9 @@ def run_track_benchmark(
         print(f"Saved paired bootstrap differences to: {boot_diff_file}")
 
         print("\n" + "=" * 80)
-        print(f"PAIRED BOOTSTRAP TEST PERFORMANCE DIFFERENCES vs LR ({suffix.upper()} TRACK):")
+        print(
+            f"PAIRED BOOTSTRAP TEST PERFORMANCE DIFFERENCES vs LR ({suffix.upper()} TRACK):"
+        )
         print("=" * 80)
         print(boot_diff_df.to_string(index=False))
 
@@ -436,19 +535,35 @@ def run_track_benchmark(
     dca_pdf = f"step_15_benchmark_dca_{suffix}.pdf"
 
     print("\nGenerating publication figures...")
-    plot_benchmark_roc_pr(plot_dict, y_test, save_path=roc_pr_pdf, track_title=track_title)
+    plot_benchmark_roc_pr(
+        plot_dict, y_test, save_path=roc_pr_pdf, track_title=track_title
+    )
     print(f"Saved ROC/PR curves to: {roc_pr_pdf}")
 
-    plot_benchmark_calibration(plot_dict, y_test, save_path=calib_pdf, track_title=track_title)
+    plot_benchmark_calibration(
+        plot_dict, y_test, save_path=calib_pdf, track_title=track_title
+    )
     print(f"Saved Calibration curves to: {calib_pdf}")
 
     plot_benchmark_dca(plot_dict, y_test, save_path=dca_pdf, track_title=track_title)
     print(f"Saved Decision Curve Analysis to: {dca_pdf}")
 
     print("\n" + "=" * 80)
-    print(f"FINAL PERFORMANCE SUMMARY ON {eval_label.upper()} ({suffix.upper()} TRACK):")
+    print(
+        f"FINAL PERFORMANCE SUMMARY ON {eval_label.upper()} ({suffix.upper()} TRACK):"
+    )
     print("=" * 80)
-    summary_cols = ["Model", "AUPRC", "AUROC", "Brier", "Calib_Slope", "Sensitivity", "Specificity", "F1", "Threshold"]
+    summary_cols = [
+        "Model",
+        "AUPRC",
+        "AUROC",
+        "Brier",
+        "Calib_Slope",
+        "Sensitivity",
+        "Specificity",
+        "F1",
+        "Threshold",
+    ]
     print(test_summary_df[summary_cols].round(4).to_string(index=False))
     return tuning_info
 
@@ -475,7 +590,7 @@ def main():
         "--quick-test",
         action="store_true",
         help="Smoke test with fewer folds/epochs/bootstrap samples, evaluated on a split of "
-             "the training set (the locked test set is not used)",
+        "the training set (the locked test set is not used)",
     )
     parser.add_argument(
         "--tuned-params",
@@ -485,8 +600,13 @@ def main():
     args = parser.parse_args()
 
     config = load_benchmark_config("benchmark_config.json")
-    if config["protocol"].get("device", "cpu").startswith("cuda") and not torch.cuda.is_available():
-        raise RuntimeError("benchmark_config.json requests CUDA but torch.cuda is not available")
+    if (
+        config["protocol"].get("device", "cpu").startswith("cuda")
+        and not torch.cuda.is_available()
+    ):
+        raise RuntimeError(
+            "benchmark_config.json requests CUDA but torch.cuda is not available"
+        )
 
     # Resolve models
     if args.models.lower() == "all":
@@ -502,13 +622,21 @@ def main():
     print("=" * 80)
 
     run_info = collect_run_info(config, selected_models, args.quick_test)
-    run_info_file = "step_15_benchmark_run_info_quicktest.json" if args.quick_test else "step_15_benchmark_run_info.json"
+    run_info_file = (
+        "step_15_benchmark_run_info_quicktest.json"
+        if args.quick_test
+        else "step_15_benchmark_run_info.json"
+    )
 
     started = time.time()
     tracks = TRACK_ORDER if args.track == "both" else [args.track]
 
     run_info["tuning"] = {}
-    progress = {"done": 0, "total": len(tracks) * len(selected_models), "started": started}
+    progress = {
+        "done": 0,
+        "total": len(tracks) * len(selected_models),
+        "started": started,
+    }
     for tr in tracks:
         run_info["tuning"][tr] = run_track_benchmark(
             track_name=tr,
@@ -527,7 +655,9 @@ def main():
         json.dump(run_info, f, indent=2, ensure_ascii=False)
     print(f"\nRun provenance saved to: {run_info_file}")
 
-    print(f"\nAll benchmark tasks completed successfully in {time.time() - started:.1f}s.")
+    print(
+        f"\nAll benchmark tasks completed successfully in {time.time() - started:.1f}s."
+    )
 
 
 if __name__ == "__main__":

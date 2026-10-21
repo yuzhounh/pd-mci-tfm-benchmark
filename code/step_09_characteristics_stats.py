@@ -1,13 +1,13 @@
 """
-基线单访视特征描述与单变量关联分析。
+Step 09: baseline characteristics and univariable association analysis.
 
-输出包括：
-  - 训练集和受试者隔离验证集的总体描述（正文 Table 1）
-  - 按 PD-NC / PD-MCI 分层的受试者层面描述（补充 Table S10）
-  - 单变量 logistic GLM 的 OR 与模型标准 95% CI，
-    以及在每个数据集内分别进行 Benjamini-Hochberg 校正的 P 值
+Outputs:
+  - Overall characteristics of the training and held-out test sets (main Table 1).
+  - Participant-level characteristics stratified by PD-NC / PD-MCI (Supplementary Table S10).
+  - Univariable logistic GLM odds ratios with model-based 95% CIs,
+      and P values adjusted by Benjamini-Hochberg separately within each dataset.
 
-单变量关联分析仅用于描述/探索，不参与 LASSO 特征选择。
+The univariable associations are descriptive and do not guide LASSO feature selection.
 """
 
 import os
@@ -34,23 +34,23 @@ warnings.filterwarnings("ignore")
 
 
 # ================================================================
-# ① 配置区 —— 修改此处即可调整分析行为
+# (1) Configuration
 # ================================================================
 
-# 分组列名与显示标签
+# Group column and display labels
 GROUP_COL = "MCI"
 GROUP_LABELS = {0: "PD-NC", 1: "PD-MCI"}
 
-# 变量类型手动覆盖（优先级高于自动检测）
-# 可选值：'Continuous'（连续）/ 'Nominal'（无序分类）/ 'Ordinal'（有序分类）
+# Manual variable types (take precedence over automatic detection)
+# Allowed values: 'Continuous', 'Nominal' (unordered categories), 'Ordinal' (ordered categories)
 VARIABLE_TYPE_OVERRIDE: dict[str, str] = {
-    "SEX": "Nominal",  # 性别：无序二分类
-    "NHY": "Ordinal",  # H&Y 分期：有序分类
-    "APOE_e4": "Ordinal",  # APOE ε4：有序等级变量
-    "quip": "Continuous",  # QUIP 冲动控制障碍量表总分
+    "SEX": "Nominal",  # sex: unordered binary
+    "NHY": "Ordinal",  # H&Y stage: ordered
+    "APOE_e4": "Ordinal",  # number of APOE e4 alleles: ordered
+    "quip": "Continuous",  # QUIP impulse-control disorder total score
 }
 
-# 特征显示名称映射（包含全部 31 个候选特征）
+# Display names of all 31 candidate features
 FEATURE_NAME_MAPPING: dict[str, str] = {
     "age_at_visit": "Age",
     "SEX": "Sex",
@@ -85,7 +85,7 @@ FEATURE_NAME_MAPPING: dict[str, str] = {
     "duration": "Duration",
 }
 
-# 连续变量有效数字精度定制（整数量表/剂量去 .00，临床评分 1 位，浮点特征 2 位）
+# Decimals for continuous variables (0 for integer scales and doses, 1 for clinical scores, 2 for other measures)
 FEATURE_PRECISION: dict[str, int] = {
     "EDUCYRS": 0,
     "LEDD": 0,
@@ -106,7 +106,7 @@ FEATURE_PRECISION: dict[str, int] = {
     "duration": 2,
 }
 
-# 特征单变量 OR 模型配置与子类标签
+# Univariable OR settings and level labels
 FEATURE_OR_CONFIG: dict[str, dict] = {
     "age_at_visit": {"scale": 1.0, "unit": "per 1-year increase"},
     "SEX": {
@@ -228,32 +228,32 @@ FEATURE_OR_CONFIG: dict[str, dict] = {
     "duration": {"scale": 1.0, "unit": "per 1-year increase"},
 }
 
-# 正态性判断阈值
+# Normality threshold
 NORMALITY_ALPHA = 0.05
 
-# 卡方 → Fisher 切换阈值
-FISHER_2X2_MIN_EXPECTED = 5  # 2×2：任一格期望频数 < 5 则改用 Fisher
-FISHER_RXC_PROPORTION = 0.20  # r×c：超过 20% 的格子期望频数 < 5
-FISHER_RXC_MIN_ANY = 1  # r×c：任一格期望频数 < 1
+# When to switch from chi-squared to Fisher's exact test
+FISHER_2X2_MIN_EXPECTED = 5  # 2x2: any expected count < 5
+FISHER_RXC_PROPORTION = 0.20  # rxc: more than 20% of cells with expected count < 5
+FISHER_RXC_MIN_ANY = 1  # rxc: any expected count < 1
 
-# Monte Carlo 置换检验模拟次数（r×c Fisher）
+# Number of Monte Carlo permutations (rxc Fisher test)
 MONTE_CARLO_N = 10_000
 MONTE_CARLO_SEED = 42
 
-# 缺失率超过此阈值时跳过该变量
+# Skip variables with a higher missing rate
 MISSING_SKIP_THRESHOLD = 0.50
 
-# FDR 校正阈值
+# FDR threshold
 FDR_ALPHA = 0.05
 
 
 # ================================================================
-# ② 工具函数
+# (2) Helpers
 # ================================================================
 
 
 def format_p(p: float) -> str:
-    """格式化 p 值：极小值写为 <0.001，其余保留 3 位小数"""
+    """Format a P value: <0.001 for very small values, otherwise 3 decimals."""
     if p is None or (isinstance(p, float) and (np.isnan(p) or np.isinf(p))):
         return "NE"
     if p < 0.001:
@@ -262,7 +262,7 @@ def format_p(p: float) -> str:
 
 
 def format_or_ci(or_val: float, ci_low: float, ci_high: float) -> str:
-    """格式化 OR (95% CI)：保留 2 位小数，使用标准短横线或 en-dash"""
+    """Format OR (95% CI) with 2 decimals and an en dash."""
     if any(
         v is None or (isinstance(v, float) and (np.isnan(v) or np.isinf(v)))
         for v in [or_val, ci_low, ci_high]
@@ -272,9 +272,9 @@ def format_or_ci(or_val: float, ci_low: float, ci_high: float) -> str:
 
 
 def markdown_table(df: pd.DataFrame) -> str:
-    """将 DataFrame 转为 Markdown 表格（不依赖 tabulate）"""
+    """Convert a DataFrame to a Markdown table (without tabulate)."""
     cols = df.columns.tolist()
-    # 计算每列最大宽度
+    # Maximum width of each column
     widths = [max(len(str(v)) for v in [c] + df[c].tolist()) for c in cols]
     widths = [max(w, 3) for w in widths]
 
@@ -289,60 +289,60 @@ def markdown_table(df: pd.DataFrame) -> str:
 
 
 # ================================================================
-# ③ Step 1：变量类型判断
+# (3) Variable types
 # ================================================================
 
 
 def auto_detect_type(series: pd.Series) -> tuple[str, str]:
     """
-    自动判断变量类型
-    返回 (类型, 判断理由)
+    Detect the variable type automatically.
+    Returns (type, reason).
     """
     data = series.dropna()
     n_unique = data.nunique()
 
-    # 判断是否全为整数值
+    # Are all values integers?
     all_int = all(
         isinstance(x, (int, np.integer)) or (isinstance(x, float) and x.is_integer())
         for x in data
     )
 
     if n_unique <= 2:
-        return "Nominal", f"唯一值数量为 {n_unique}（≤2），判断为二分类无序变量"
+        return "Nominal", f"{n_unique} unique values (<= 2): binary nominal variable"
     elif n_unique <= 8 and all_int:
         return "Nominal", (
-            f"唯一值数量为 {n_unique}（≤8）且全为整数，自动判断为无序分类变量；"
-            '若实为有序分类，请在 VARIABLE_TYPE_OVERRIDE 中手动指定 "Ordinal"'
+            f"{n_unique} unique integer values (<= 8): nominal variable; "
+            'set "Ordinal" in VARIABLE_TYPE_OVERRIDE if it is ordered'
         )
     else:
         return (
             "Continuous",
-            f"唯一值数量为 {n_unique}（>8）或包含非整数，判断为连续变量",
+            f"{n_unique} unique values (> 8) or non-integer values: continuous variable",
         )
 
 
 def get_variable_type(series: pd.Series, col_name: str) -> tuple[str, str]:
-    """获取变量类型（手动覆盖优先）"""
+    """Return the variable type (manual setting first)."""
     if col_name in VARIABLE_TYPE_OVERRIDE:
         vtype = VARIABLE_TYPE_OVERRIDE[col_name]
-        return vtype, f'手动指定为 "{vtype}"（VARIABLE_TYPE_OVERRIDE）'
+        return vtype, f'set to "{vtype}" in VARIABLE_TYPE_OVERRIDE'
     return auto_detect_type(series)
 
 
 # ================================================================
-# ④ Step 2：正态性检验
+# (4) Normality tests
 # ================================================================
 
 
 def normality_test_single(arr: np.ndarray) -> tuple[float, str]:
     """
-    对单组数据进行正态性检验
-    n ≤ 50 → Shapiro-Wilk；n > 50 → KS-Lilliefors
-    返回 (p 值, 检验方法名)
+    Test one group for normality:
+    n <= 50: Shapiro-Wilk; n > 50: Kolmogorov-Smirnov (Lilliefors).
+    Returns (P value, test name).
     """
     n = len(arr)
     if n < 3:
-        return 1.0, "N/A（样本量不足）"
+        return 1.0, "N/A (sample too small)"
     if n <= 50:
         _, p = shapiro(arr)
         return float(p), "Shapiro-Wilk"
@@ -355,8 +355,8 @@ def check_normality(
     data: pd.DataFrame, feature: str, group_col: str
 ) -> tuple[bool, str]:
     """
-    对各组分别做正态性检验，全部组 p ≥ 0.05 才认为正态
-    返回 (is_normal, 详细描述)
+    Test each group; the variable counts as normal only if every group has P >= 0.05.
+    Returns (is_normal, details).
     """
     groups = sorted(data[group_col].unique())
     details = []
@@ -366,7 +366,7 @@ def check_normality(
         p, met = normality_test_single(arr)
         details.append(f"Group {g} [{met}, p={p:.3f}, n={len(arr)}]")
 
-    # 重新提取 p 值列表做判断
+    # Collect the P values for the decision
     all_normal = True
     for g in groups:
         arr = data[data[group_col] == g][feature].dropna().values
@@ -379,12 +379,12 @@ def check_normality(
 
 
 # ================================================================
-# ⑤ Step 3：描述统计
+# (5) Descriptive statistics
 # ================================================================
 
 
 def describe_continuous(arr: np.ndarray, is_normal: bool, feat: str = None) -> str:
-    """连续变量描述：根据临床特征定制精度（0位/1位/2位）"""
+    """Describe a continuous variable with feature-specific precision (0, 1 or 2 decimals)."""
     if len(arr) == 0:
         return "N/A"
     prec = FEATURE_PRECISION.get(feat, 2)
@@ -410,8 +410,8 @@ def describe_categorical_levels(
     data: pd.DataFrame, feature: str, group_col: str
 ) -> list[dict]:
     """
-    分类/有序变量按等级展开描述
-    每个等级返回一个字典，包含 overall 及各组的 'n (%)' 字符串
+    Describe a categorical or ordinal variable level by level.
+    Each level gives a dict with 'n (%)' strings for the overall sample and each group.
     """
     groups = sorted(data[group_col].unique())
     overall_data = data[feature].dropna()
@@ -433,15 +433,15 @@ def describe_categorical_levels(
 
 
 # ================================================================
-# ⑥ Step 3：组间比较检验
+# (6) Group comparisons
 # ================================================================
 
 
 def dunn_bonferroni(groups_data: list[np.ndarray]) -> dict[tuple, float]:
     """
-    Dunn 检验（Bonferroni 校正）—— Kruskal-Wallis 事后检验
-    含并列秩修正
-    返回 {(i, j): bonferroni_p} 两两比较 p 值字典
+    Dunn's test with Bonferroni correction (post hoc for Kruskal-Wallis),
+    with tie correction.
+    Returns {(i, j): Bonferroni-adjusted P} for each pair.
     """
     k = len(groups_data)
     n_comparisons = k * (k - 1) // 2
@@ -449,11 +449,11 @@ def dunn_bonferroni(groups_data: list[np.ndarray]) -> dict[tuple, float]:
     n = len(all_data)
     ranks = stats.rankdata(all_data)
 
-    # 并列修正项
+    # Tie correction
     _, counts = np.unique(all_data, return_counts=True)
     tie_correction = np.sum(counts**3 - counts) / (12 * (n - 1)) if n > 1 else 0.0
 
-    # 各组平均秩
+    # Mean rank of each group
     group_sizes = [len(g) for g in groups_data]
     group_mean_ranks = []
     idx = 0
@@ -476,8 +476,8 @@ def monte_carlo_fisher_pvalue(
     data: pd.DataFrame, feature: str, group_col: str
 ) -> float:
     """
-    r×c Fisher 精确检验（Monte Carlo 置换模拟）
-    对分组标签进行随机置换，计算卡方统计量的零分布，返回置换 p 值
+    rxc Fisher exact test by Monte Carlo permutation.
+    Permutes the group labels, builds the null distribution of the chi-squared statistic and returns the permutation P value.
     """
     valid = data[feature].notna()
     feat_vals = data.loc[valid, feature].values
@@ -491,7 +491,7 @@ def monte_carlo_fisher_pvalue(
     for _ in range(MONTE_CARLO_N):
         perm = rng.permutation(group_vals)
         pt = pd.crosstab(feat_vals, perm)
-        # 添加微小值避免全零列导致的数值问题
+        # Add a small constant to avoid numerical problems with all-zero columns
         ps, *_ = chi2_contingency(pt.values + 1e-10)
         if ps >= obs_stat:
             count_extreme += 1
@@ -500,8 +500,8 @@ def monte_carlo_fisher_pvalue(
 
 def check_fisher_needed(contingency_table: pd.DataFrame) -> tuple[bool, str]:
     """
-    判断是否需要改用 Fisher 精确检验
-    返回 (需要, 原因说明)
+    Decide whether Fisher's exact test is needed.
+    Returns (needed, reason).
     """
     _, _, _, expected = chi2_contingency(contingency_table)
     is_2x2 = contingency_table.shape == (2, 2)
@@ -513,16 +513,16 @@ def check_fisher_needed(contingency_table: pd.DataFrame) -> tuple[bool, str]:
         if min_expected < FISHER_2X2_EXPECTED:
             return (
                 True,
-                f"2×2 表中最小期望频数 {min_expected:.2f} < {FISHER_2X2_EXPECTED}",
+                f"2x2 table: minimum expected count {min_expected:.2f} < {FISHER_2X2_EXPECTED}",
             )
         return False, ""
     else:
         if min_expected < FISHER_RXC_MIN_ANY:
-            return True, f"r×c 表中存在期望频数 {min_expected:.2f} < 1"
+            return True, f"rxc table: expected count {min_expected:.2f} < 1"
         if n_small / n_cells > FISHER_RXC_PROPORTION:
             return (
                 True,
-                f"r×c 表中 {n_small}/{n_cells} 个格子期望频数 < 5（>{FISHER_RXC_PROPORTION:.0%}）",
+                f"rxc table: {n_small}/{n_cells} cells with expected count < 5 (>{FISHER_RXC_PROPORTION:.0%})",
             )
         return False, ""
 
@@ -535,8 +535,8 @@ def compare_groups(
     is_normal: bool = None,
 ) -> tuple[str, float, str]:
     """
-    执行组间比较
-    返回 (检验方法名, p 值, 事后检验说明)
+    Compare the groups.
+    Returns (test name, P value, post hoc note).
     """
     groups = sorted(data[group_col].unique())
     k = len(groups)
@@ -544,10 +544,10 @@ def compare_groups(
 
     posthoc_note = ""
 
-    # ── 规则 A / B：连续变量 ──────────────────────────────────────
+    # Rules A/B: continuous variables
     if var_type == "Continuous":
         if is_normal:
-            # 规则 A：正态 → t 检验 / ANOVA + Tukey HSD
+            # Rule A: normal -> t test / ANOVA with Tukey HSD
             if k == 2:
                 _, p = ttest_ind(groups_data[0], groups_data[1])
                 method = "Independent t-test"
@@ -559,10 +559,10 @@ def compare_groups(
                     all_labels = np.concatenate(
                         [[g] * len(gd) for g, gd in zip(groups, groups_data)]
                     )
-                    pairwise_tukeyhsd(all_vals, all_labels)  # 执行（结果供记录）
+                    pairwise_tukeyhsd(all_vals, all_labels)  # run for the record
                     posthoc_note = "Post-hoc: Tukey HSD"
         else:
-            # 规则 B：非正态 → Mann-Whitney U / Kruskal-Wallis + Dunn
+            # Rule B: non-normal -> Mann-Whitney U / Kruskal-Wallis with Dunn
             if k == 2:
                 _, p = mannwhitneyu(
                     groups_data[0], groups_data[1], alternative="two-sided"
@@ -572,12 +572,12 @@ def compare_groups(
                 _, p = kruskal(*groups_data)
                 method = "Kruskal-Wallis test"
                 if p < 0.05:
-                    dunn_bonferroni(groups_data)  # 执行（结果供记录）
+                    dunn_bonferroni(groups_data)  # run for the record
                     posthoc_note = "Post-hoc: Dunn test (Bonferroni)"
 
-    # ── 规则 D：有序分类变量 ──────────────────────────────────────
+    # Rule D: ordinal variables
     elif var_type == "Ordinal":
-        # 绝不使用卡方检验；使用秩检验
+        # Use rank tests, never the chi-squared test
         if k == 2:
             _, p = mannwhitneyu(groups_data[0], groups_data[1], alternative="two-sided")
             method = "Mann-Whitney U test"
@@ -588,7 +588,7 @@ def compare_groups(
                 dunn_bonferroni(groups_data)
                 posthoc_note = "Post-hoc: Dunn test (Bonferroni)"
 
-    # ── 规则 C：无序分类变量 ──────────────────────────────────────
+    # Rule C: nominal variables
     elif var_type == "Nominal":
         contingency = pd.crosstab(
             data[feature].dropna(), data.loc[data[feature].notna(), group_col]
@@ -600,7 +600,7 @@ def compare_groups(
                 _, p = fisher_exact(contingency)
                 method = "Fisher's exact test"
             else:
-                # r×c：Monte Carlo 模拟
+                # rxc: Monte Carlo simulation
                 p = monte_carlo_fisher_pvalue(data, feature, group_col)
                 method = "Fisher's exact test (Monte Carlo)"
         else:
@@ -608,22 +608,22 @@ def compare_groups(
             method = "Chi-square test"
 
     else:
-        raise ValueError(f"未知变量类型：{var_type}")
+        raise ValueError(f"Unknown variable type: {var_type}")
 
     return method, float(p), posthoc_note
 
 
-# 修正拼写错误：统一变量名
-FISHER_2X2_EXPECTED = FISHER_2X2_MIN_EXPECTED  # 兼容内部引用
+# Alias used inside the functions above
+FISHER_2X2_EXPECTED = FISHER_2X2_MIN_EXPECTED
 
 
 # ================================================================
-# ⑦ 脚注生成
+# (7) Table footnote
 # ================================================================
 
 
 def generate_footnotes(used_methods: dict) -> str:
-    """生成 SCI 规范的统计学方法脚注"""
+    """Build the footnote describing the statistical methods."""
     lines = [
         "**Statistical footnotes:**",
         "",
@@ -682,7 +682,7 @@ def generate_footnotes(used_methods: dict) -> str:
 
 
 # ================================================================
-# ⑧ 单变量 Logistic GLM
+# (8) Univariable logistic GLM
 # ================================================================
 
 
@@ -692,16 +692,16 @@ def fit_univariable_glm(
     feat_name: str,
 ) -> tuple[float, float, float, float, str]:
     """
-    拟合单变量 logistic GLM。
-    返回 (or_val, ci_low, ci_high, p_val, status_desc)
-    如果未收敛或存在完全分离/极端估计，返回 NaN 并标注状态。
+    Fit a univariable logistic GLM.
+    Returns (or_val, ci_low, ci_high, p_val, status_desc).
+    Returns NaN with a status note if the fit does not converge or shows separation or extreme estimates.
     """
     try:
-        # 数据集准备与常数项
+        # Design matrix with a constant
         X = sm.add_constant(x.astype(float), has_constant="add")
         y_num = y.astype(float)
 
-        # 检查方差
+        # Check the variance
         if x.nunique() <= 1:
             return np.nan, np.nan, np.nan, np.nan, "Zero variance"
 
@@ -716,7 +716,7 @@ def fit_univariable_glm(
         se = float(res.bse.iloc[1])
         p_val = float(res.pvalues.iloc[1])
 
-        # 检查是否有限
+        # Check that the estimates are finite
         if (
             np.isnan(param)
             or np.isinf(param)
@@ -724,12 +724,16 @@ def fit_univariable_glm(
             or np.isinf(se)
             or se <= 0
         ):
-            print(f"  ⚠  {feat_name} non-finite parameter or SE (param={param}, se={se})")
+            print(
+                f"  ⚠  {feat_name} non-finite parameter or SE (param={param}, se={se})"
+            )
             return np.nan, np.nan, np.nan, np.nan, "Non-finite parameter or SE"
 
-        # 检查完全分离/极大标准误
+        # Check for separation or very large standard errors
         if se > 10.0 or abs(param) > 20.0:
-            print(f"  ⚠  {feat_name} potential complete separation: param={param:.2f}, se={se:.2f}")
+            print(
+                f"  ⚠  {feat_name} potential complete separation: param={param:.2f}, se={se:.2f}"
+            )
             return np.nan, np.nan, np.nan, np.nan, "Potential separation (extreme SE)"
 
         or_val = float(np.exp(param))
@@ -737,7 +741,9 @@ def fit_univariable_glm(
         ci_high = float(np.exp(param + 1.96 * se))
 
         if not (ci_low <= or_val <= ci_high):
-            print(f"  ⚠  {feat_name} abnormal CI order: {ci_low} <= {or_val} <= {ci_high}")
+            print(
+                f"  ⚠  {feat_name} abnormal CI order: {ci_low} <= {or_val} <= {ci_high}"
+            )
             return np.nan, np.nan, np.nan, np.nan, "Abnormal CI"
 
         return or_val, ci_low, ci_high, p_val, "OK"
@@ -746,23 +752,25 @@ def fit_univariable_glm(
         return np.nan, np.nan, np.nan, np.nan, f"Error: {exc}"
 
 
-def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort") -> pd.DataFrame:
-    """对指定数据集执行分层描述与单变量 Logistic GLM 分析并保存 CSV 文件"""
+def analyze_cohort(
+    file_path: str, output_file: str, cohort_name: str = "Cohort"
+) -> pd.DataFrame:
+    """Run the stratified description and univariable logistic GLMs for one dataset and save a CSV file."""
     print(f"\n{'=' * 65}")
-    print(f"【{cohort_name}】正在读取数据：{file_path}")
+    print(f"[{cohort_name}] Reading data: {file_path}")
     print(f"{'=' * 65}")
 
     if not os.path.exists(file_path):
-        print(f"Error: 数据文件不存在：{file_path}")
+        print(f"Error: data file not found: {file_path}")
         return None
 
     data = pd.read_csv(file_path)
 
     if GROUP_COL not in data.columns:
-        print(f'Error: 未找到列 "{GROUP_COL}"，请检查数据文件')
+        print(f'Error: column "{GROUP_COL}" not found; check the data file')
         return None
 
-    # 特征列（排除目标列及前 5 列）
+    # Feature columns (excluding the target and the first 5 columns)
     all_columns = [c for c in data.columns if c != GROUP_COL]
     feature_columns = all_columns[5:]
 
@@ -771,16 +779,16 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
 
     n_total = len(data)
     n_subjects = data["PATNO"].nunique()
-    print("样本量统计：")
-    print(f"  受试者数：{n_subjects}")
-    print(f"  访视记录总计：{n_total}")
+    print("Sample size:")
+    print(f"  Participants: {n_subjects}")
+    print(f"  Visit records: {n_total}")
     for g, lab in zip(groups, group_labels):
-        print(f"  {lab}（{GROUP_COL}={g}）：{len(data[data[GROUP_COL] == g])}")
-    print(f"待分析特征数：{len(feature_columns)}")
+        print(f"  {lab} ({GROUP_COL}={g}): {len(data[data[GROUP_COL] == g])}")
+    print(f"Features to analyse: {len(feature_columns)}")
 
-    # ── Step 1：变量类型与正态性判断 ──────────────────────────────
+    # Step 1: variable types and normality
     print("\n" + "=" * 65)
-    print(f"【{cohort_name} Step 1】变量类型判断与单变量关联建模")
+    print(f"[{cohort_name} step 1] Variable types and univariable models")
     print("=" * 65)
 
     var_type_dict = {}
@@ -789,7 +797,7 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
     for feat in feature_columns:
         missing_rate = data[feat].isnull().mean()
         if missing_rate > MISSING_SKIP_THRESHOLD:
-            print(f"\n⚠  {feat}：缺失率 {missing_rate:.1%} > 50%，跳过")
+            print(f"\nWarning: {feat}: missing rate {missing_rate:.1%} > 50%, skipped")
             continue
 
         vtype, reason = get_variable_type(data[feat], feat)
@@ -800,13 +808,13 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
             is_normal, _ = check_normality(data, feat, GROUP_COL)
             normality_dict[feat] = is_normal
 
-    # ── Step 2：拟合各变量单变量模型 ─────────────────────────────
+    # Step 2: univariable model for each variable
     y = data[GROUP_COL]
     table_rows = []
     raw_p_values = []
     parent_row_indices = []
 
-    # 样本量行
+    # Sample-size row
     n_row = {
         "Variable": "n",
         "Overall": str(n_total),
@@ -838,11 +846,11 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
         display = FEATURE_NAME_MAPPING.get(feat, feat)
         cfg = FEATURE_OR_CONFIG.get(feat, {})
 
-        # 缩放处理（例如 LEDD 除以 100）
+        # Rescale where configured (e.g. LEDD per 100 mg)
         scale = cfg.get("scale", 1.0)
         x_series = data[feat].astype(float) / scale
 
-        # 拟合单变量模型
+        # Fit the univariable model
         or_val, ci_l, ci_u, p_val, status = fit_univariable_glm(
             y=y,
             x=x_series,
@@ -854,11 +862,13 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
         parent_row_idx = len(table_rows)
         parent_row_indices.append(parent_row_idx)
 
-        # ── 连续变量：单行 ────────────────────────────────────────
+        # Continuous variable: one row
         if vtype == "Continuous":
             row = {
                 "Variable": display,
-                "Overall": describe_continuous(data[feat].dropna().values, is_normal, feat=feat),
+                "Overall": describe_continuous(
+                    data[feat].dropna().values, is_normal, feat=feat
+                ),
                 "Univariable OR (95% CI)": or_ci_str,
                 "P Value": p_val,
                 "Adjusted P Value": "",
@@ -868,7 +878,7 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
                 row[lab] = describe_continuous(arr, is_normal, feat=feat)
             table_rows.append(row)
 
-        # ── 分类 / 有序变量：展开各等级 ─────────────────────────────
+        # Categorical or ordinal variable: one row per level
         else:
             parent = {
                 "Variable": display,
@@ -881,7 +891,7 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
                 parent[lab] = ""
             table_rows.append(parent)
 
-            # 各等级子行
+            # Level rows
             level_labels_map = cfg.get("level_labels", {})
             for lr in describe_categorical_levels(data, feat, GROUP_COL):
                 lvl = lr["level"]
@@ -897,26 +907,28 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
                     sub[lab] = lr[f"group_{g}"]
                 table_rows.append(sub)
 
-    # ── Step 3：数据集内 Benjamini-Hochberg FDR 校正 ──────────────
+    # Step 3: Benjamini-Hochberg FDR correction within the dataset
     valid_p_indices = [
         (idx, p)
         for idx, p in zip(parent_row_indices, raw_p_values)
         if not np.isnan(p) and not np.isinf(p)
     ]
     if valid_p_indices:
-        print(f"\n【{cohort_name} FDR 校正】对 {len(valid_p_indices)} 个有效 P 值进行 Benjamini-Hochberg 校正...")
+        print(
+            f"\n[{cohort_name} FDR] Benjamini-Hochberg correction of {len(valid_p_indices)} valid P values..."
+        )
         p_to_adjust = [p for _, p in valid_p_indices]
         _, p_adjusted = fdrcorrection(p_to_adjust, alpha=FDR_ALPHA)
 
         for (row_idx, _), p_adj in zip(valid_p_indices, p_adjusted):
             table_rows[row_idx]["Adjusted P Value"] = format_p(p_adj)
 
-    # 格式化原始 P 值
+    # Format the unadjusted P values
     for row in table_rows:
         if isinstance(row.get("P Value"), float):
             row["P Value"] = format_p(row["P Value"])
 
-    # ── 构建并输出 DataFrame ──────────────────────────────────────
+    # Build and write the table
     col_order = [
         "Variable",
         "Overall",
@@ -928,15 +940,15 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
     ]
     results_df = pd.DataFrame(table_rows, columns=col_order)
 
-    # 打印 Markdown 表格
+    # Print a Markdown table
     print("\n\n" + "=" * 65)
-    print(f"【{cohort_name} Univariable Association & Characteristics Table】")
+    print(f"[{cohort_name} Univariable Association & Characteristics Table]")
     print("=" * 65 + "\n")
     print(markdown_table(results_df))
 
-    # 打印显著结果
+    # Print the significant results
     print("\n" + "=" * 65)
-    print(f"【{cohort_name} 显著结果汇总】（FDR 校正后 p < 0.05）")
+    print(f"[{cohort_name} significant results] (FDR-adjusted P < 0.05)")
     print("=" * 65)
     for i, row in enumerate(table_rows):
         if i in parent_row_indices and row.get("Adjusted P Value"):
@@ -950,9 +962,9 @@ def analyze_cohort(file_path: str, output_file: str, cohort_name: str = "Cohort"
             except (ValueError, TypeError):
                 pass
 
-    # 保存 CSV 文件
+    # Save the CSV file
     results_df.to_csv(output_file, index=False, encoding="utf-8-sig")
-    print(f"\n[OK] {cohort_name} 结果已保存至：{output_file}")
+    print(f"\n[OK] {cohort_name} results saved to: {output_file}")
 
     return results_df
 
@@ -962,9 +974,9 @@ def summarize_main_table(
     test_path: str = "PPMI_7_test.csv",
     output_file: str = "step_09_characteristics_stats_main.csv",
 ) -> pd.DataFrame:
-    """生成正文 Table 1：训练集和受试者隔离验证集的总体描述表（不含假设检验）"""
+    """Build main Table 1: overall characteristics of the training and test sets, without hypothesis tests."""
     print(f"\n{'=' * 65}")
-    print("【正文 Table 1】生成训练集与隔离验证集总体特征描述表...")
+    print("[Main Table 1] Describing the training and test sets...")
     print(f"{'=' * 65}")
 
     tr = pd.read_csv(train_path)
@@ -972,18 +984,16 @@ def summarize_main_table(
 
     def get_stats(df: pd.DataFrame) -> dict[str, str]:
         stats = {}
-        # 3.1 数据集结构
+        # 3.1 Dataset structure
         n_pats = df["PATNO"].nunique()
         n_records = len(df)
         stats["Participants"] = str(n_pats)
 
-        # 3.2 关键访视层面特征
+        # 3.2 Key baseline characteristics
         # Age
         arr = df["age_at_visit"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["Age"] = (
-            f"{np.median(arr):.2f} ({q1:.2f}, {q3:.2f})"
-        )
+        stats["Age"] = f"{np.median(arr):.2f} ({q1:.2f}, {q3:.2f})"
 
         # Sex (Male)
         n_male = int((df["SEX"] == 1).sum())
@@ -992,22 +1002,16 @@ def summarize_main_table(
         # Education
         arr = df["EDUCYRS"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["Education"] = (
-            f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
-        )
+        stats["Education"] = f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
 
         # FH-PD
         n_fh = int((df["fampd_bin"] == 1).sum())
-        stats["FH-PD"] = (
-            f"{n_fh} ({n_fh / n_records * 100:.1f}%)"
-        )
+        stats["FH-PD"] = f"{n_fh} ({n_fh / n_records * 100:.1f}%)"
 
         # Duration
         arr = df["duration"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["Duration"] = (
-            f"{np.median(arr):.2f} ({q1:.2f}, {q3:.2f})"
-        )
+        stats["Duration"] = f"{np.median(arr):.2f} ({q1:.2f}, {q3:.2f})"
 
         # On medication
         n_med = int((df["PDTRTMNT"] == 1).sum())
@@ -1016,9 +1020,7 @@ def summarize_main_table(
         # LEDD (mg/day)
         arr = df["LEDD"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["LEDD (mg/day)"] = (
-            f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
-        )
+        stats["LEDD (mg/day)"] = f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
 
         # PIGD (mean score, typically reported to 1 decimal place)
         arr = df["pigd"].values
@@ -1028,9 +1030,7 @@ def summarize_main_table(
         # UPDRS-III
         arr = df["updrs3_score"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["UPDRS-III"] = (
-            f"{np.median(arr):.1f} ({q1:.1f}, {q3:.1f})"
-        )
+        stats["UPDRS-III"] = f"{np.median(arr):.1f} ({q1:.1f}, {q3:.1f})"
 
         # GDS (integer scale 0-15)
         arr = df["gds"].values
@@ -1045,9 +1045,7 @@ def summarize_main_table(
         # SCOPA-AUT (integer scale 0-69)
         arr = df["scopa"].values
         q1, q3 = np.percentile(arr, [25, 75])
-        stats["SCOPA-AUT"] = (
-            f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
-        )
+        stats["SCOPA-AUT"] = f"{np.median(arr):.0f} ({q1:.0f}, {q3:.0f})"
 
         return stats
 
@@ -1063,32 +1061,32 @@ def summarize_main_table(
     )
 
     print("\n" + "=" * 65)
-    print("【Table 1 Content Preview】")
+    print("[Table 1 Content Preview]")
     print("=" * 65 + "\n")
     print(markdown_table(main_df))
 
     main_df.to_csv(output_file, index=False, encoding="utf-8-sig")
-    print(f"\n[OK] 正文 Table 1 描述统计已保存至：{output_file}")
+    print(f"\n[OK] Main Table 1 saved to: {output_file}")
 
     return main_df
 
 
 def main():
-    # 1. 分析训练集
+    # 1. Training set
     df_train = analyze_cohort(
         file_path="PPMI_7_train.csv",
         output_file="step_09_characteristics_stats_train.csv",
         cohort_name="Training Set",
     )
 
-    # 2. 分析测试集
+    # 2. Test set
     df_test = analyze_cohort(
         file_path="PPMI_7_test.csv",
         output_file="step_09_characteristics_stats_test.csv",
         cohort_name="Validation Set",
     )
 
-    # 3. 生成正文 Table 1
+    # 3. Main Table 1
     df_main = summarize_main_table(
         train_path="PPMI_7_train.csv",
         test_path="PPMI_7_test.csv",
@@ -1096,10 +1094,10 @@ def main():
     )
 
     print("\n" + "=" * 65)
-    print("[SUCCESS] 访视特征与单变量关联分析完成！已输出：")
-    print("  1. step_09_characteristics_stats_train.csv (Table S10 训练集)")
-    print("  2. step_09_characteristics_stats_test.csv (Table S10 验证集)")
-    print("  3. step_09_characteristics_stats_main.csv (正文 Table 1)")
+    print("[SUCCESS] Characteristics and univariable associations finished. Outputs:")
+    print("  1. step_09_characteristics_stats_train.csv (Table S10, training set)")
+    print("  2. step_09_characteristics_stats_test.csv (Table S10, test set)")
+    print("  3. step_09_characteristics_stats_main.csv (main Table 1)")
     print("=" * 65)
 
     return df_train, df_test, df_main

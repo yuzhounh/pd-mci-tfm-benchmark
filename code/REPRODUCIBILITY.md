@@ -1,12 +1,20 @@
-# Baseline single-visit analysis
+# Baseline diagnostic model and complete manuscript workflow
 
 ## Scope
 
 This project is derived from an earlier multi-visit project that is not part of
 this repository. The present workflow uses one baseline (`BL`)
-record per participant. It intentionally excludes the former multi-algorithm
-benchmark stage and cross-model comparison (`step_15_*`); in this project
-`step_14_*` is the bootstrap shrinkage step, not the algorithm benchmark.
+record per participant. `run_all.py` covers steps 01--14 only; the manual benchmark,
+interpretability and manuscript stages below are also part of the current project.
+Step 14 is bootstrap shrinkage, and step 21 supplies the authoritative corrected
+seven-predictor comparison. The data cut, cohort, probabilities and selected model
+remain unchanged during the v1.9 consistency/reporting revision.
+
+The test split was used in earlier versions before some protocol choices changed.
+The final tuning/fitting uses training data only, but this does not remove adaptive
+bias from test reuse. The main seven-predictor/AUPRC choices were fixed for the final
+benchmark after earlier results had been seen. Read `protocol.known_deviations` and
+the supplement's analysis history; comparisons remain exploratory.
 
 The retained modeling path is:
 
@@ -78,7 +86,7 @@ Preview the locked manifest without running analysis:
 python run_all.py --dry-run
 ```
 
-Run the complete pipeline:
+Run the baseline workflow (steps 01--14):
 
 ```powershell
 python run_all.py
@@ -108,10 +116,12 @@ an experimental target version rather than a validated release.
 
 The v1.4 benchmark (config 1.4.0) compares 10 algorithms with LR:
 
-1. **LR**: the complete v1.0 algorithm (LASSO 1SE selection -> unpenalized LR ->
-   bootstrap uniform shrinkage), refit inside every training fold. Fitted on the
-   full training set it reproduces the v1.0 shrunk model exactly; it is the
-   reference for all paired comparisons.
+1. **LR**: step 14 selects from 28 candidates, refits unpenalized LR, estimates
+   shrinkage using 500 resamples that repeat selection, and re-estimates the
+   intercept. Step 21 uses this model for final seven-predictor test comparisons.
+   Its five-fold OOF fits keep the selected predictors and factor 0.814 fixed;
+   selection is not repeated within those folds. The legacy step 15 seven-feature
+   LR used a different shrinkage factor and is superseded for the manuscript.
 2. **Classical machine learning**: SVM (Platt probabilities) and random forest.
 3. **GBDT**: XGBoost, LightGBM and CatBoost.
 4. **Tabular deep learning trained from scratch**: RealMLP (pytabkit, NeurIPS 2024)
@@ -127,9 +137,11 @@ The v1.4 benchmark (config 1.4.0) compares 10 algorithms with LR:
   bootstrap Delta AUPRC versus LR. Delta AUROC, Delta Brier, calibration and DCA
   are secondary.
 - **Device**: torch-based models run on the GPU (`protocol.device = "cuda"`).
-- **Early stopping**: XGBoost, LightGBM, CatBoost, RealMLP and TabM early-stop on a
-  10% split of the rows they are trained on; the rows being scored are never used
-  for early stopping.
+- **Internal validation**: XGBoost, LightGBM, CatBoost and TabM early-stop on a
+  stratified 10% split (seed 42); RealMLP chooses its best validation epoch during
+  a fixed schedule. Final fits use 1,048 rows for trees/weights and 117 for
+  validation, with no subsequent all-row refit. LR/SVM/RF and foundation models
+  use all 1,165 rows. The scored fold/test rows never guide these choices.
 - **Class imbalance**: no model uses class weighting or resampling.
 - **Failures**: a failing model stops the run.
 
@@ -206,12 +218,155 @@ refits nothing. It writes:
 - forest plots of AUPRC and AUROC;
 - a recalibration sensitivity analysis, in which every model is logistically
   recalibrated on its own training out-of-fold predictions. This analysis was post
-  hoc in v1.2 and is pre-specified from v1.4 on.
+  hoc in v1.2 and was retained before the final v1.4 run, after earlier test
+  results had been seen. Step 21 supersedes its seven-feature LR results.
 
-Steps 15 and 16 are run manually and are not part of `run_all.py`. v1.2 results are
-summarised in the project notes, which are not part of this repository.
+Steps 15--22 are manual and are not part of `run_all.py`.
 
 `--quick-test` shrinks all compute budgets and evaluates on a stratified 30%
 split of the training set; it never uses the locked test set and writes
 `*_quicktest*` outputs. Known protocol deviations are listed in
 `benchmark_config.json` under `protocol.known_deviations`.
+
+## Complete execution order and authoritative outputs
+
+Run from `code/`, with the restricted input and licensed pretrained weights
+available. R 4.6.1 with `rms` 8.1.1 generates the nomogram; `latexmk` and a TeX
+distribution are required for this multi-file manuscript. Long training/tuning
+and TabFM SHAP runs are resumable; the commands below describe reproduction,
+not a requirement to rerun existing complete experiments for reporting edits.
+
+```powershell
+python run_all.py                         # 01--14; data, selection, final LR
+python step_15_tuning.py                  # both tracks, 100 trials each
+python step_15_benchmark.py --track both
+python step_16_benchmark_ci.py
+python step_17_shap.py                    # ten models, 100-row background, log-odds
+python step_17_shap.py --models TabFM      # completes all eleven; slow GPU run
+python validate_shap.py                   # targeted diagnostics and S11 checks
+Rscript step_18_nomogram.R
+python step_21_lr_shrinkage_consistency.py # final LR comparisons/OOF/threshold/export
+python step_19_manuscript_figures.py
+python step_20_manuscript_tables.py
+python step_22_supplementary_tables.py
+python report_cohort_metadata.py
+python build_manuscript.py                # both PDFs saved under manuscript/
+python validate_final_artifacts.py        # saved-result/manifest verification
+```
+
+### Display-only revisions from saved results
+
+`feature_labels.csv` is the manuscript display dictionary for the 28 candidates;
+`feature_labels.py`, the SHAP/table scripts and the R nomogram labels consume it.
+Analysis columns, historical result keys and model parameter JSON stay unchanged.
+
+For a feature-name revision, run from `code/`:
+
+```powershell
+python step_17_shap.py --plots-only
+python step_20_manuscript_tables.py
+python step_22_supplementary_tables.py --feature-tables-only
+python refresh_saved_feature_labels.py  # Python with PyMuPDF; no R fit or LASSO CV
+```
+
+The plots-only path does not import foundation-model implementations or refit
+models. It preserves the saved SHAP diagnostic CSV. The feature-tables-only path
+writes only S3, S8 and S12 and skips tuning-space imports, figures and LASSO.
+Copy the regenerated step 17 figures to their corresponding names under
+`manuscript/figures/`; export the updated `fig1_workflow.svg` with Inkscape, then
+run `build_manuscript.py` for both documents.
+
+For label-only revisions across the workflow, nomogram, LASSO and SHAP figures,
+run `python refresh_saved_feature_labels.py --display-labels-only`. It updates
+saved vector text while preserving curves and plotted values; the shorter UPSIT
+axis labels keep their original left/right/center alignment. UPSIT means the
+age- and sex-adjusted percentile, as stated in the manuscript and captions.
+Table exporters use `table_presentation.py` to keep short titles above tables,
+and 9-pt notes below them, with upright bold Note and Abbreviations labels.
+
+`refresh_saved_feature_labels.py` re-exports the saved vector nomogram and LASSO
+figure with updated text, verifies that non-text vector geometry is unchanged,
+and retains the nomogram's saved points. The original LASSO CV means/standard
+errors are not saved as a separate file, so its existing curves, selected
+penalties and numerical annotations are preserved. PyMuPDF is an optional
+dependency for this display-only route (available in the local base Python);
+it is not required for the scientific analysis pipeline. The default step 22
+figure path still recalculates LASSO and should not be used for label-only edits.
+
+For the current Figure 2 layout, run
+`python refresh_saved_feature_labels.py --nomogram-layout-only` after any R
+nomogram export. This removes the Education unit from the figure (retained in
+its caption), aligns all eleven row labels on one left boundary, then moves
+the entire label column 30 pt closer to the axes and trims the newly empty
+left margin (670-pt cropped canvas). Text operators, fonts, scales and vector
+paths are preserved. The spacing pass is idempotent. Table 1 uses bare variable names and values, with units, percentages,
+reported categories and predictor definitions in the note below the table.
+
+| Final artifact | Authority and dependencies |
+|---|---|
+| Final probability equation and shrinkage | `step_14_shrunk_coefficients.csv`; bootstrap repeats selection from 28 candidates |
+| Seven-feature metrics, OOF threshold, CIs, paired differences, recalibration | `step_21_benchmark_*_7feat.*`; supersedes seven-feature step 15/16 outputs |
+| 28-feature sensitivity comparison | `step_15_benchmark_*_full.*` and `step_16_benchmark_*_full.*` |
+| Deployable JSON | `model_parameters.json["final_model"]` and the identical standalone `final_model.json`, written by `export_final_model.py`; raw units, imputation, coding and step 21 threshold |
+| SHAP | `step_17_shap_*_7feat.*`; empirical training background, all 128 coalitions, all eleven models; numerical caveats in S11 |
+| Main tables and updated forest/calibration figure | Steps 20 and 19 read the authorities above |
+| Supplement | Step 22; printed Table S11 (file `S12.tex`) reads existing 500-bootstrap selection frequencies. Since v1.11 the TRIPOD+AI checklist is a separate document (`manuscript/tripod_ai_checklist.tex`), so printed supplementary table numbers are one lower than the `S*.tex` file names |
+| Final PDFs | `build_manuscript.py`; `manuscript/manuscript.pdf` and `manuscript/supplementary_materials.pdf` beside their TeX sources; shared `manuscript/figures/` and `manuscript/tables/`; temporary builds in `tmp/latex/`, input/PDF hashes in `manuscript_build_manifest.json` |
+| Current provenance and validation | `final_artifact_manifest.json`, produced by `validate_final_artifacts.py` |
+
+Top-level coefficient fields and `shrinkage` in `model_parameters.json` are kept
+as legacy development metadata, including their old ten-fold threshold. Use only
+`final_model` for new predictions. Its coefficients use original units and need
+no z-score transformation; education is capped at 20 years. The final threshold
+is 0.2003183883873819 from pooled five-fold OOF predictions. `predict_final_model`
+accepts the seven raw field names, checks binary coding, and fills missing values
+with the saved training constants; missing fields or non-numeric values raise
+errors. Input plausibility and multiple missing predictors require clinical review.
+The saved training constants define the missing-input rule; they do not ensure
+movement toward the population average risk. Performance with multiple missing
+predictors has not been evaluated.
+
+LASSO uses `solver="liblinear"`, L1, `C=1/lambda`, default
+`intercept_scaling=1` (a penalized synthetic intercept), and in-fold scaling.
+The 1SE rule uses `np.std(fold_scores, ddof=0)/sqrt(10)`, selecting the largest
+eligible lambda. These implementation conventions were preserved. Unshrunk
+association intervals are conditional on selection. Imputation precedes CV;
+QUIP, ESS and RBDSQ use mode despite being numeric scores. Other numeric
+predictors use medians and binary predictors modes. Non-APOE missingness is at
+most 8.2%, versus APOE 19.1%/20.0% in train/test. Standardization uses the outer
+training fold or all training rows; TabM tuning uses seed 42, evaluation seeds
+42--46. Imputation, fixed selection and reuse of tuning folds make training CV
+metrics optimistic.
+
+## Refreshing reports from existing results
+
+```powershell
+python export_final_model.py
+python report_cohort_metadata.py
+python step_19_manuscript_figures.py
+python step_20_manuscript_tables.py
+python step_22_supplementary_tables.py --skip-lasso
+python build_manuscript.py
+python validate_final_artifacts.py
+```
+
+The default step 22 also recomputes the LASSO path as a consistency check;
+`--skip-lasso` refreshes tables and the other figures using saved results.
+Use `--tables-only` when only tables need refreshing; it leaves all figures in place.
+`refresh_comparison_intervals.py` deterministically restores full-precision CI
+columns in existing comparison CSVs (2,000 paired resamples, seed 42), checking
+that point estimates and P values do not change. New benchmark runs now write
+these columns directly. `validate_shap.py` refits only LightGBM and performs
+targeted coalition/batch probes; it does not rerun full SHAP. Its checked
+diagnostics are saved as `step_17_shap_diagnostics.json`. The LightGBM float32
+conversion applies only to the TreeSHAP reference explainer; casting actual
+prediction/coalition inputs can change probabilities and is not done.
+
+The public export contains analysis code/configuration and the final model
+parameters (`model_parameters.json`, `final_model.json`); it excludes other
+results, figures, manuscript, review notes and all participant-level data. This
+private workspace retains aggregate results and current PDFs.
+`release/public_files.json` lists the published files and `release/export_public.py`
+copies them into the local GitHub clone `release/pd-mci-tfm-benchmark/`
+(`release/export_release.py` is the earlier, tag-based export). The full build/report commands require the
+private manuscript sources or an equivalent separately supplied manuscript tree.

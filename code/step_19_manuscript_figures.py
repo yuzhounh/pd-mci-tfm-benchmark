@@ -18,6 +18,7 @@ import shutil
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from result_formatting import difference_bounds
 
 import figstyle as fs
 
@@ -26,14 +27,29 @@ fs.apply()
 OUT_DIR = os.path.join("..", "manuscript", "figures")
 MM = 1 / 25.4
 LR_COLOR = "#1f77b4"
-ORDER = ["SVM", "RF", "XGBoost", "LightGBM", "CatBoost", "RealMLP", "TabM", "TabICLv2", "TabPFN", "TabFM"]
+ORDER = [
+    "SVM",
+    "RF",
+    "XGBoost",
+    "LightGBM",
+    "CatBoost",
+    "RealMLP",
+    "TabM",
+    "TabICLv2",
+    "TabPFN",
+    "TabFM",
+]
 LABEL = {"TabICLv2": "TabICL v2.0", "TabPFN": "TabPFN v3.5", "TabFM": "TabFM v1.0"}
 FAMILY = {
-    "SVM": ("Classical machine learning", "#8C8C2A"), "RF": ("Classical machine learning", "#8C8C2A"),
-    "XGBoost": ("Gradient-boosted trees", "#d62728"), "LightGBM": ("Gradient-boosted trees", "#d62728"),
+    "SVM": ("Classical machine learning", "#8C8C2A"),
+    "RF": ("Classical machine learning", "#8C8C2A"),
+    "XGBoost": ("Gradient-boosted trees", "#d62728"),
+    "LightGBM": ("Gradient-boosted trees", "#d62728"),
     "CatBoost": ("Gradient-boosted trees", "#d62728"),
-    "RealMLP": ("Deep learning", "#2ca02c"), "TabM": ("Deep learning", "#2ca02c"),
-    "TabICLv2": ("Tabular foundation models", "#9467bd"), "TabPFN": ("Tabular foundation models", "#9467bd"),
+    "RealMLP": ("Deep learning", "#2ca02c"),
+    "TabM": ("Deep learning", "#2ca02c"),
+    "TabICLv2": ("Tabular foundation models", "#9467bd"),
+    "TabPFN": ("Tabular foundation models", "#9467bd"),
     "TabFM": ("Tabular foundation models", "#9467bd"),
 }
 
@@ -43,8 +59,11 @@ def parse_ci(s: str) -> tuple[float, float]:
     return float(lo), float(hi)
 
 
-def delta_forest(diffs_file: str = "step_21_benchmark_bootstrap_diffs_7feat.csv",
-                 out_path: str | None = None, auprc_title: str = "ΔAUPRC vs LR (primary)") -> None:
+def delta_forest(
+    diffs_file: str = "step_21_benchmark_bootstrap_diffs_7feat.csv",
+    out_path: str | None = None,
+    auprc_title: str = "ΔAUPRC vs LR (primary)",
+) -> None:
     """Differences from LR in AUPRC and AUROC; also used for the 28-predictor supplementary figure."""
     diffs = pd.read_csv(diffs_file).set_index("Model").loc[ORDER]
     # Frames of the common size; model names on the left, family legend in a row below the frames
@@ -53,11 +72,13 @@ def delta_forest(diffs_file: str = "step_21_benchmark_bootstrap_diffs_7feat.csv"
     axes[1].sharey(axes[0])
     axes[1].tick_params(labelleft=False)
     ypos = np.arange(len(ORDER))[::-1]
-    for ax, metric, title in [(axes[0], "AUPRC", auprc_title),
-                              (axes[1], "AUROC", "ΔAUROC vs LR")]:
+    for ax, metric, title in [
+        (axes[0], "AUPRC", auprc_title),
+        (axes[1], "AUROC", "ΔAUROC vs LR"),
+    ]:
         for y, model in zip(ypos, ORDER):
             point = diffs.loc[model, f"Delta_{metric}"]
-            lo, hi = parse_ci(diffs.loc[model, f"Delta_{metric}_95CI"])
+            lo, hi = difference_bounds(diffs.loc[model], metric)
             color = FAMILY[model][1]
             ax.plot([lo, hi], [y, y], color=color, linewidth=1.4)
             ax.plot(point, y, "o", color=color, markersize=4.5)
@@ -77,17 +98,39 @@ def delta_forest(diffs_file: str = "step_21_benchmark_bootstrap_diffs_7feat.csv"
     axes[0].set_yticklabels([LABEL.get(m, m) for m in ORDER])
     handles = []
     for fam, color in dict(FAMILY.values()).items():
-        handles.append(plt.Line2D([], [], color=color, marker="o", linewidth=1.4, markersize=4.5, label=fam))
-    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, bbox_to_anchor=(0.5, 0.0),
-               fontsize=7.5)  # family legend below the frames: a little larger than legends inside axes
-    fig.savefig(out_path or os.path.join(OUT_DIR, "fig_delta_forest.pdf"), bbox_inches="tight", pad_inches=0.03)
+        handles.append(
+            plt.Line2D(
+                [],
+                [],
+                color=color,
+                marker="o",
+                linewidth=1.4,
+                markersize=4.5,
+                label=fam,
+            )
+        )
+    fig.legend(
+        handles=handles,
+        loc="lower center",
+        ncol=4,
+        frameon=False,
+        bbox_to_anchor=(0.5, 0.0),
+        fontsize=7.5,
+    )  # family legend below the frames: a little larger than legends inside axes
+    fig.savefig(
+        out_path or os.path.join(OUT_DIR, "fig_delta_forest.pdf"),
+        bbox_inches="tight",
+        pad_inches=0.03,
+    )
     plt.close(fig)
 
 
 def calibration_dca() -> None:
     pred = pd.read_csv("step_14_shrunk_predictions.csv")
     y, p = pred["y_true"].to_numpy(int), pred["y_prob"].to_numpy(float)
-    ci = pd.read_csv("step_14_shrunk_bootstrap_ci.csv").set_index("Metric")
+    ci = (
+        pd.read_csv("step_21_benchmark_model_ci_7feat.csv").set_index("Model").loc["LR"]
+    )
     fig, axes_grid = fs.axes_grid(1, 2)
     ax1, ax2 = axes_grid[0]
 
@@ -98,10 +141,18 @@ def calibration_dca() -> None:
         n, k = m.sum(), y[m].sum()
         phat = k / n
         z = 1.96
-        centre = (phat + z ** 2 / (2 * n)) / (1 + z ** 2 / n)
-        half = z * np.sqrt(phat * (1 - phat) / n + z ** 2 / (4 * n ** 2)) / (1 + z ** 2 / n)
-        ax1.errorbar(p[m].mean(), phat, yerr=[[phat - (centre - half)], [(centre + half) - phat]],
-                     fmt="o", color=LR_COLOR, markersize=4.5, capsize=2, linewidth=1.1)
+        centre = (phat + z**2 / (2 * n)) / (1 + z**2 / n)
+        half = z * np.sqrt(phat * (1 - phat) / n + z**2 / (4 * n**2)) / (1 + z**2 / n)
+        ax1.errorbar(
+            p[m].mean(),
+            phat,
+            yerr=[[phat - (centre - half)], [(centre + half) - phat]],
+            fmt="o",
+            color=LR_COLOR,
+            markersize=4.5,
+            capsize=2,
+            linewidth=1.1,
+        )
     lim = 0.45
     ax1.plot([0, lim], [0, lim], "--", color="grey", linewidth=0.9)
     ax1.set_xlim(0, lim)
@@ -111,10 +162,18 @@ def calibration_dca() -> None:
     ax1.set_xlabel("Predicted probability of PD-MCI")
     ax1.set_ylabel("Observed proportion")
     ax1.set_title("Calibration (test set)")
-    slope, s_lo, s_hi = ci.loc["Calibration_Slope", ["Point_Estimate", "CI_Lower", "CI_Upper"]]
-    icpt = ci.loc["Joint_Recalibration_Intercept", "Point_Estimate"]
-    ax1.text(0.02, 0.43, f"Calibration slope {slope:.2f} (95% CI {s_lo:.2f}–{s_hi:.2f})\n"
-             f"Calibration intercept {icpt:.2f}".replace("-", "−"), va="top", fontsize=fs.ANNOTATION_SIZE)
+    slope, s_lo, s_hi = ci[
+        ["Calib_Slope", "Calib_Slope_CI_lower", "Calib_Slope_CI_upper"]
+    ]
+    icpt = ci["Calib_Intercept"]
+    ax1.text(
+        0.02,
+        0.43,
+        f"Calibration slope {slope:.2f} (95% CI {s_lo:.2f}–{s_hi:.2f})\n"
+        f"Calibration intercept {icpt:.2f}".replace("-", "−"),
+        va="top",
+        fontsize=fs.ANNOTATION_SIZE,
+    )
     ax1.grid(alpha=0.25)
     rug = ax1.inset_axes([0, 0, 1, 0.12], sharex=ax1)
     rug.hist(p, bins=40, range=(0, lim), color="#BBBBBB")
@@ -124,10 +183,20 @@ def calibration_dca() -> None:
     thresholds = np.linspace(0.01, 0.50, 99)
     n = len(y)
     prev = y.mean()
-    nb_model = [((p >= t) & (y == 1)).sum() / n - ((p >= t) & (y == 0)).sum() / n * t / (1 - t) for t in thresholds]
+    nb_model = [
+        ((p >= t) & (y == 1)).sum() / n - ((p >= t) & (y == 0)).sum() / n * t / (1 - t)
+        for t in thresholds
+    ]
     nb_all = [prev - (1 - prev) * t / (1 - t) for t in thresholds]
     ax2.plot(thresholds, nb_model, color=LR_COLOR, linewidth=1.6, label="Final model")
-    ax2.plot(thresholds, nb_all, color="grey", linewidth=1.0, linestyle="--", label="Treat all")
+    ax2.plot(
+        thresholds,
+        nb_all,
+        color="grey",
+        linewidth=1.0,
+        linestyle="--",
+        label="Treat all",
+    )
     ax2.axhline(0, color="black", linewidth=0.9, label="Treat none")
     ax2.set_xlim(0, 0.5)
     ax2.set_ylim(-0.03, prev + 0.02)
@@ -137,7 +206,11 @@ def calibration_dca() -> None:
     # Default light frame, as for the other legends inside axes; text smaller than the axis labels
     ax2.legend(frameon=True, loc="upper right")
     ax2.grid(alpha=0.25)
-    fig.savefig(os.path.join(OUT_DIR, "fig_calibration_dca.pdf"), bbox_inches="tight", pad_inches=0.03)
+    fig.savefig(
+        os.path.join(OUT_DIR, "fig_calibration_dca.pdf"),
+        bbox_inches="tight",
+        pad_inches=0.03,
+    )
     plt.close(fig)
 
 

@@ -1,7 +1,7 @@
 # pd-mci-tfm-benchmark
 
 Analysis code for the manuscript *An Interpretable Diagnostic Prediction Model for Concurrent
-Mild Cognitive Impairment in Early Parkinson's Disease: Comparison with Machine Learning, Deep
+Mild Cognitive Impairment in Parkinson's Disease: Comparison with Machine Learning, Deep
 Learning and Tabular Foundation Models*.
 
 Using baseline data of the Parkinson's Progression Markers Initiative (PPMI), the code develops a
@@ -13,8 +13,11 @@ nomogram and the manuscript figures and tables.
 
 ## Data are not included
 
-This repository contains **no PPMI data**: no participant-level rows, predictions, SHAP values or
-model checkpoints. Result files (summary tables, figures) are not included either; the scripts regenerate them. The PPMI data
+The public code export contains **no PPMI data**: no participant-level rows, predictions, SHAP values or
+model checkpoints. It also excludes summary results, figures, manuscript and review files, except the final model
+parameters (`code/model_parameters.json` and `code/final_model.json`); the scripts regenerate
+analysis outputs. The private local workspace retains aggregate results, manuscript sources and current final PDFs.
+The PPMI data
 (curated data cut of 10 August 2026) can be obtained from <https://www.ppmi-info.org/access-data-specimens/download-data>
 by registered researchers who accept the PPMI Data Use Agreement. Place the file
 `PPMI_Curated_Data_Cut_Public_20260810.xlsx` in `code/` to run the pipeline.
@@ -29,10 +32,15 @@ comparable with the published ones.
 
 | Path | Content |
 |---|---|
-| `code/` | Analysis scripts `step_01` to `step_22`, shared modules, configuration and environment lock files |
+| `code/` | Analysis scripts `step_01` to `step_23`, shared modules, configuration, environment lock files and the final model parameters |
 | `code/benchmark_config.json` | Frozen benchmark protocol (models, tuning budget, seeds) |
 | `code/requirements-lock-cuda.txt` | Exact package versions of the environment used for the results (Python 3.13.5, torch 2.14.0+cu130) |
 | `code/REPRODUCIBILITY.md` | Environment notes and the order of the baseline pipeline |
+
+In the private local workspace, `manuscript/` contains `manuscript.tex`,
+`manuscript.pdf`, `supplementary_materials.tex`, `supplementary_materials.pdf` and `references.bib` side by side.
+Both documents use the shared `manuscript/figures/` and `manuscript/tables/` directories;
+supplementary files use `figS_*` and `S*.tex` names. LaTeX build files stay in `tmp/latex/`.
 
 ## Reproducing the analysis
 
@@ -48,17 +56,26 @@ comparable with the published ones.
 3. Run the benchmark and the later steps in this order: `step_15_tuning.py` (hyperparameter
    tuning), `step_15_benchmark.py`, `step_16_benchmark_ci.py`, `step_17_shap.py`,
    `step_18_nomogram.R` (R with the `rms` package), `step_21_lr_shrinkage_consistency.py`,
-   `step_19_manuscript_figures.py`, `step_20_manuscript_tables.py`, `step_22_supplementary_tables.py`.
+   `step_19_manuscript_figures.py`, `step_20_manuscript_tables.py`, `step_22_supplementary_tables.py`,
+   and the sensitivity analysis `step_23_lr_reduced_sensitivity.py`.
    Long steps save each finished unit (fold, model, chunk) to disk and resume after an interruption.
    `step_17_shap.py` computes exact SHAP values for all eleven models. By default it runs the ten
    models other than TabFM v1.0; TabFM v1.0 is slow (about 5 hours on an RTX 5070 Ti GPU) and is run
    separately with `python step_17_shap.py --models TabFM`, after which the figures and tables cover
-   all eleven models.
-   Steps 19, 20 and 22 write the manuscript's figures and tables to a `manuscript/` folder next to
-   `code/`, which is created if missing.
+   all eleven models. Run `python validate_shap.py` for the targeted LightGBM/TabICL diagnostics
+   used in the final SHAP checks and artifact validation.
+   Steps 19, 20 and 22 write figures and tables to `manuscript/` next to `code/`.
+   With the manuscript sources available, run `python report_cohort_metadata.py`,
+   `python build_manuscript.py` and `python validate_final_artifacts.py` to refresh cohort metadata,
+   compile both final PDFs and verify the complete saved artifact chain. The public export does not
+   supply manuscript TeX sources. See `code/REPRODUCIBILITY.md` for the complete order and authority map.
 
 Step 21 uses the final logistic regression model (shrinkage factor from the bootstrap that repeats
-LASSO selection) in the seven-predictor comparison.
+LASSO selection) in the seven-predictor comparison. Its outputs supersede the legacy seven-predictor
+step 15/16 results. The deployable raw-unit model, imputation values and current threshold are in
+`code/model_parameters.json["final_model"]`, generated and checked by `code/export_final_model.py`, which also writes the same object alone to `code/final_model.json`.
+The test split was evaluated in earlier versions before the primary track/metric and comparison
+protocol changed; final comparisons are exploratory and need independent confirmation.
 
 ## Pretrained model weights
 

@@ -31,8 +31,12 @@ import numpy as np
 import pandas as pd
 
 import step_16_benchmark_ci as s16
-from benchmark_evaluation import (compute_binary_metrics, find_optimal_youden_threshold,
-                                  paired_bootstrap_test_comparison, run_cross_validation)
+from benchmark_evaluation import (
+    compute_binary_metrics,
+    find_optimal_youden_threshold,
+    paired_bootstrap_test_comparison,
+    run_cross_validation,
+)
 from step_14_shrinkage import fit_unpenalized, predict_prob, shrink_model
 
 PREFIX = "step_21_benchmark"
@@ -52,7 +56,9 @@ class FixedVariableShrunkLR:
 
     def fit(self, X_train, y_train, X_val=None, y_val=None):
         model = fit_unpenalized(X_train, y_train)
-        self.intercept_, self.coef_ = shrink_model(X_train, y_train, model.coef_[0], self.shrinkage)
+        self.intercept_, self.coef_ = shrink_model(
+            X_train, y_train, model.coef_[0], self.shrinkage
+        )
         return self
 
     def predict_proba(self, X):
@@ -77,33 +83,55 @@ def main() -> None:
     for a, b in ((test7, testf), (oof7, ooff)):
         if not ((a["PATNO"] == b["PATNO"]).all() and (a["MCI"] == b["MCI"]).all()):
             raise RuntimeError("Participants or outcomes differ between the two tracks")
-    diff14 = float(np.abs(step14["y_prob"].to_numpy() - testf["prob_LR"].to_numpy()).max())
+    diff14 = float(
+        np.abs(step14["y_prob"].to_numpy() - testf["prob_LR"].to_numpy()).max()
+    )
     if diff14 > 1e-8:
-        raise RuntimeError(f"Full-track LR differs from the step 14 final model ({diff14:.1e})")
-    print(f"Full-track LR test predictions equal the step 14 final model (max diff {diff14:.1e})")
+        raise RuntimeError(
+            f"Full-track LR differs from the step 14 final model ({diff14:.1e})"
+        )
+    print(
+        f"Full-track LR test predictions equal the step 14 final model (max diff {diff14:.1e})"
+    )
 
     # Test-set predictions: the final model. Out-of-fold predictions: the same seven predictors and
     # the same shrinkage factor (0.814) in every fold, as for all other models (variables are fixed
     # after LASSO; nothing is reselected inside the folds).
     track = config["data_files"]["7feat_track"]
     train = pd.read_csv(track["train"])
-    feats = [c for c in train.columns if c not in config["data_files"]["forbidden_columns"]]
-    X_tr, y_tr = train[feats].to_numpy(float), train[config["data_files"]["target_column"]].to_numpy(int)
+    feats = [
+        c for c in train.columns if c not in config["data_files"]["forbidden_columns"]
+    ]
+    X_tr, y_tr = train[feats].to_numpy(float), train[
+        config["data_files"]["target_column"]
+    ].to_numpy(int)
     subj = train[config["data_files"]["subject_column"]].to_numpy()
     if not (subj == oof7["PATNO"].to_numpy()).all():
         raise RuntimeError("Training rows are not in the step 15 order")
-    s_final = float(pd.read_csv("step_14_shrinkage_summary.csv").set_index("Metric").loc["Shrinkage_factor_S", "Value"])
+    s_final = float(
+        pd.read_csv("step_14_shrinkage_summary.csv")
+        .set_index("Metric")
+        .loc["Shrinkage_factor_S", "Value"]
+    )
     proto = config["protocol"]
     oof_lr, cv_mean, cv_std = run_cross_validation(
-        lambda: FixedVariableShrunkLR(s_final), X_tr, y_tr, subj,
-        n_folds=proto["cv_folds"], random_state=proto["cv_seed"])
+        lambda: FixedVariableShrunkLR(s_final),
+        X_tr,
+        y_tr,
+        subj,
+        n_folds=proto["cv_folds"],
+        random_state=proto["cv_seed"],
+    )
     thr = find_optimal_youden_threshold(y_tr, oof_lr)
-    print(f"LR (fixed seven predictors, shrinkage {s_final:.4f}): out-of-fold Youden threshold {thr:.4f}")
+    print(
+        f"LR (fixed seven predictors, shrinkage {s_final:.4f}): out-of-fold Youden threshold {thr:.4f}"
+    )
 
     test7["prob_LR"] = testf["prob_LR"]
     oof7["prob_LR"] = oof_lr
-    lr_test = compute_binary_metrics(test7["MCI"].to_numpy().astype(int), test7["prob_LR"].to_numpy(),
-                                     threshold=thr)
+    lr_test = compute_binary_metrics(
+        test7["MCI"].to_numpy().astype(int), test7["prob_LR"].to_numpy(), threshold=thr
+    )
     for col in met7.columns:
         if col in lr_test:
             met7.loc[met7["Model"] == "LR", col] = lr_test[col]
@@ -125,13 +153,21 @@ def main() -> None:
         if m == "LR":
             continue
         d = paired_bootstrap_test_comparison(
-            y_test=y, baseline_probs=test7["prob_LR"].to_numpy(),
-            model_probs=test7[f"prob_{m}"].to_numpy(), n_bootstrap=n_boot, random_state=seed)
+            y_test=y,
+            baseline_probs=test7["prob_LR"].to_numpy(),
+            model_probs=test7[f"prob_{m}"].to_numpy(),
+            n_bootstrap=n_boot,
+            random_state=seed,
+        )
         row = {"Model": m, "Comparison": f"{m} vs LR"}
         for k in ("AUPRC", "AUROC", "Brier"):
             row[f"Delta_{k}"] = d[f"Delta_{k}"]["diff_point"]
-            row[f"Delta_{k}_95CI"] = f"{d[f'Delta_{k}']['ci_lower']:.4f}–{d[f'Delta_{k}']['ci_upper']:.4f}"
+            row[f"Delta_{k}_95CI"] = (
+                f"{d[f'Delta_{k}']['ci_lower']:.4f}–{d[f'Delta_{k}']['ci_upper']:.4f}"
+            )
             row[f"Delta_{k}_pval"] = d[f"Delta_{k}"]["p_value"]
+            row[f"Delta_{k}_CI_lower"] = d[f"Delta_{k}"]["ci_lower"]
+            row[f"Delta_{k}_CI_upper"] = d[f"Delta_{k}"]["ci_upper"]
         rows.append(row)
     diffs = pd.DataFrame(rows)
     diffs.to_csv(f"{PREFIX}_bootstrap_diffs_7feat.csv", index=False)
@@ -144,12 +180,21 @@ def main() -> None:
         print(f"Max change in {k} versus step 15: {err:.1e}")
         if err > 1e-9:
             raise RuntimeError(f"{k} changed although LR ranks are identical")
-    print(diffs.assign(ci=diffs["Delta_Brier_95CI"])[["Model", "Delta_Brier", "ci", "Delta_Brier_pval"]]
-          .round(4).to_string(index=False))
+    print(
+        diffs.assign(ci=diffs["Delta_Brier_95CI"])[
+            ["Model", "Delta_Brier", "ci", "Delta_Brier_pval"]
+        ]
+        .round(4)
+        .to_string(index=False)
+    )
 
     s16.IN_PREFIX = PREFIX
     s16.OUT_PREFIX = PREFIX
     s16.main(tracks=["7feat"])
+
+    from export_final_model import export_final_model
+
+    export_final_model()
 
 
 if __name__ == "__main__":

@@ -29,15 +29,20 @@ def resolve_start_index(start_from: str | None, skip: int) -> int:
         return skip
     if start_from.isdigit():
         prefix = f"step_{int(start_from):02d}_"
-        matches = [i for i, script in enumerate(PIPELINE_MANIFEST) if script.startswith(prefix)]
+        matches = [
+            i for i, script in enumerate(PIPELINE_MANIFEST) if script.startswith(prefix)
+        ]
     else:
-        matches = [i for i, script in enumerate(PIPELINE_MANIFEST) if script == start_from]
+        matches = [
+            i for i, script in enumerate(PIPELINE_MANIFEST) if script == start_from
+        ]
     if not matches:
         raise ValueError(f"Unknown --start-from value: {start_from}")
     return matches[0] + skip
 
 
 def main() -> None:
+    """Parse the command line and run the selected pipeline steps."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     os.chdir(script_dir)
 
@@ -45,7 +50,9 @@ def main() -> None:
         description="Run the PD-MCI baseline single-visit logistic-regression pipeline."
     )
     parser.add_argument("--dry-run", action="store_true", help="Print the plan only")
-    parser.add_argument("--skip", type=int, default=0, help="Skip N scripts after the start point")
+    parser.add_argument(
+        "--skip", type=int, default=0, help="Skip N scripts after the start point"
+    )
     parser.add_argument(
         "--start-from",
         help="Start from a step number (for example 8) or exact script filename",

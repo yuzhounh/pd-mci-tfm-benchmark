@@ -28,15 +28,16 @@ BINARY_FEATURES = {
     "sym_posins",
     "sym_other",
     "PDTRTMNT",
-    "quip",
-    "ess",
-    "rem",
     "orthostasis",
     "td_pigd",
     "APOE_e4",
     "has_GBA",
     "has_LRRK2",
 }
+
+# Preserve the validated analysis: these non-binary questionnaire scores used
+# their training-set mode, an explicit exception to numeric-score median imputation.
+MODE_IMPUTED_SCORE_FEATURES = {"quip", "ess", "rem"}
 
 
 def validate_single_visit(df: pd.DataFrame, name: str) -> None:
@@ -55,7 +56,9 @@ def validate_single_visit(df: pd.DataFrame, name: str) -> None:
 def training_mode(series: pd.Series):
     values = series.dropna().mode()
     if values.empty:
-        raise RuntimeError(f"Cannot estimate a mode for all-missing column {series.name}")
+        raise RuntimeError(
+            f"Cannot estimate a mode for all-missing column {series.name}"
+        )
     return values.iloc[0]
 
 
@@ -63,7 +66,9 @@ def training_median(series: pd.Series) -> float:
     values = pd.to_numeric(series, errors="coerce")
     median = values.median()
     if pd.isna(median):
-        raise RuntimeError(f"Cannot estimate a median for all-missing column {series.name}")
+        raise RuntimeError(
+            f"Cannot estimate a median for all-missing column {series.name}"
+        )
     return float(median)
 
 
@@ -85,7 +90,11 @@ def main() -> None:
         if column in IDENTIFIER_COLUMNS:
             continue
 
-        if column in CATEGORICAL_METADATA or column in BINARY_FEATURES:
+        if (
+            column in CATEGORICAL_METADATA
+            or column in BINARY_FEATURES
+            or column in MODE_IMPUTED_SCORE_FEATURES
+        ):
             value = training_mode(train[column])
             strategy = "training_mode"
         else:
@@ -115,7 +124,10 @@ def main() -> None:
             "test_missing_before": before_test.reindex(train.columns).values,
             "train_missing_after": remaining_train.reindex(train.columns).values,
             "test_missing_after": remaining_test.reindex(train.columns).values,
-            "strategy": [parameters.get(c, {}).get("strategy", "not_imputed") for c in train.columns],
+            "strategy": [
+                parameters.get(c, {}).get("strategy", "not_imputed")
+                for c in train.columns
+            ],
         }
     )
 
